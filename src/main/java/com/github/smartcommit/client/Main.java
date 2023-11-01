@@ -4,6 +4,7 @@ import com.github.smartcommit.model.Group;
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Level;
 
+import java.io.File;
 import java.util.Map;
 
 public class Main {
@@ -12,16 +13,16 @@ public class Main {
     BasicConfigurator.configure();
     org.apache.log4j.Logger.getRootLogger().setLevel(Level.INFO);
 
-    String COMMIT_ID = "fced40b";
+    String COMMIT_ID = "0867549b20c6a70fde8a11b41116034c2e94083b";
     try {
       SmartCommit smartCommit =
-          new SmartCommit(Config.REPO_ID, Config.REPO_NAME, Config.REPO_PATH, Config.TEMP_DIR);
+          new SmartCommit(Config.REPO_ID, Config.REPO_NAME, Config.REPO_PATH + Config.REPO_NAME, Config.TEMP_DIR + Config.REPO_NAME);
       smartCommit.setDetectRefactorings(true);
       smartCommit.setProcessNonJavaChanges(false);
       smartCommit.setWeightThreshold(Config.WEIGHT_THRESHOLD);
       smartCommit.setMinSimilarity(Config.MIN_SIMILARITY);
       smartCommit.setMaxDistance(Config.MAX_DISTANCE);
-      //      Map<String, Group> groups = smartCommit.analyzeWorkingTree();
+      //     Map<String, Group> groups = smartCommit.analyzeWorkingTree();
       Map<String, Group> groups = smartCommit.analyzeCommit(COMMIT_ID);
       if (groups != null && !groups.isEmpty()) {
         for (Map.Entry<String, Group> entry : groups.entrySet()) {

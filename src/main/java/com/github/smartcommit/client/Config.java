@@ -5,9 +5,12 @@ import java.io.File;
 /** Store the constants as the config */
 public final class Config {
   // at commit
-  public static final String REPO_NAME = "SmartCommitCore";
-  public static final String REPO_PATH = System.getProperty("user.dir");
-
+  public static final String REPO_NAME = "alibaba_fastjson";
+  public static final String REPO_PATH = System.getProperty("user.home") + File.separator + "meta_projects" + File.separator;//99服务器
+//  public static final String REPO_PATH = System.getProperty("user.home") + File.separator + "dd" + File.separator + "ddj_space" + File.separator + "meta_projects" + File.separator;//95服务器
+//  public static final String REPO_PATH = System.getProperty("user.home")+ File.separator + "ddj_space" + File.separator + "meta_projects" + File.separator;
+  public static final String TEMP_DIR = System.getProperty("user.home") + File.separator + "smartcommit" + File.separator + "temp" + File.separator;
+  public static final String CACHE_DIR = System.getProperty("user.home") + File.separator + "smartcommit" + File.separator + "cache";
   // in working tree
   //  public static final String REPO_NAME = "SmartCommitCore";
   //  public static final String REPO_PATH = "~/coding/dev" + File.separator + REPO_NAME;
@@ -18,14 +21,13 @@ public final class Config {
   // {hunk: 0 (default), member: 1, class: 2, package: 3}
   public static final Integer MAX_DISTANCE = 2;
   public static final String REPO_ID = String.valueOf(REPO_NAME.hashCode());
-  public static final String TEMP_DIR =
-      System.getProperty("user.home")
-          + File.separator
-          + "smartcommit"
-          + File.separator
-          + "temp"
-          + File.separator
-          + REPO_NAME;
+
   public static final String JRE_PATH =
       System.getProperty("java.home") + File.separator + "lib/rt.jar";
+
+  public final static String URL = "jdbc:mysql://10.176.34" +
+          ".99:3306/regression?useSSL=false&allowPublicKeyRetrieval" +
+          "=true&characterEncoding=UTF8";
+  public final static String NAME = "root";
+  public final static String PWD = "110120";
 }

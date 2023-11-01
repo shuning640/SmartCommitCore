@@ -4,10 +4,7 @@ import com.github.smartcommit.core.GraphBuilder;
 import com.github.smartcommit.core.GroupGenerator;
 import com.github.smartcommit.core.RepoAnalyzer;
 import com.github.smartcommit.io.DataCollector;
-import com.github.smartcommit.model.Action;
-import com.github.smartcommit.model.DiffFile;
-import com.github.smartcommit.model.DiffHunk;
-import com.github.smartcommit.model.Group;
+import com.github.smartcommit.model.*;
 import com.github.smartcommit.model.constant.ChangeType;
 import com.github.smartcommit.model.constant.GroupLabel;
 import com.github.smartcommit.model.constant.Version;
@@ -43,11 +40,11 @@ public class SmartCommit {
   Graph<Node, Edge> currentGraph;
 
   // options and default
-  private boolean detectRefactorings = false;
+  private boolean detectRefactorings = true;
   private boolean processNonJavaChanges = false;
   private double weightThreshold = 0D;
   private double minSimilarity = 0.8D;
-  private int maxDistance = 0;
+  private int maxDistance = 2;
 
   /**
    * Initial setup for analysis
@@ -233,6 +230,24 @@ public class SmartCommit {
     return results;
   }
 
+  public List<HunkEntity> group2Hunks(Group group){
+    List<HunkEntity> hunks = new ArrayList<>();
+    for (String diffHunkID : group.getDiffHunkIDs()) {
+      DiffHunk diffHunk = id2DiffHunkMap.get(diffHunkID.split(":")[1]);
+      if (diffHunk != null) {
+        HunkEntity hunkEntity = new HunkEntity();
+        hunkEntity.setType(diffHunk.getChangeType());
+        hunkEntity.setOldPath(Objects.equals(diffHunk.getBaseHunk().getRelativeFilePath(), "") ? "/dev/null" : diffHunk.getBaseHunk().getRelativeFilePath());
+        hunkEntity.setNewPath(Objects.equals(diffHunk.getCurrentHunk().getRelativeFilePath(), "") ? "/dev/null" : diffHunk.getCurrentHunk().getRelativeFilePath());
+        hunkEntity.setBeginA(diffHunk.getBaseStartLine());
+        hunkEntity.setBeginB(diffHunk.getCurrentStartLine());
+        hunkEntity.setEndA(diffHunk.getBaseEndLine());
+        hunkEntity.setEndB(diffHunk.getCurrentEndLine());
+        hunks.add(hunkEntity);
+      }
+    }
+    return hunks;
+  }
   /**
    * Analyze the changes collected
    *

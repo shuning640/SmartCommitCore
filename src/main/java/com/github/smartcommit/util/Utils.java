@@ -10,6 +10,10 @@ import info.debatty.java.stringsimilarity.Cosine;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.text.similarity.JaccardSimilarity;
+import org.eclipse.jdt.core.JavaCore;
+import org.eclipse.jdt.core.dom.AST;
+import org.eclipse.jdt.core.dom.ASTParser;
+import org.eclipse.jdt.core.dom.CompilationUnit;
 import org.mozilla.universalchardet.UniversalDetector;
 import org.refactoringminer.api.Refactoring;
 import org.refactoringminer.api.RefactoringType;
@@ -767,4 +771,122 @@ public class Utils {
       return path.substring(index);
     }
   }
+
+  public static void copyDirToTarget(String fileFullNameCurrent, String fileFullNameTarget){
+    try {
+      File current = new File(fileFullNameCurrent);
+      if (!current.exists() || !current.isDirectory()) {
+        return;
+      }
+
+      File target = new File(fileFullNameTarget);
+      if (target.exists()) {
+        FileUtils.forceDelete(target);
+      }
+      FileUtils.forceMkdir(target.getParentFile());
+      FileUtils.copyDirectory(current, target);
+    }catch (Exception e){
+      e.printStackTrace();
+    }
+
+  }
+
+  public static <T> List<T> castList(Class<? extends T> c, List<?> collection) {
+    // adapted from https://stackoverflow.com/a/2848268
+    List<T> r = new ArrayList<>(collection.size());
+    for (Object obj: collection) {
+      r.add(c.cast(obj));
+    }
+    return r;
+  }
+
+  public static CompilationUnit parseCompliationUnit(String fileContent) {
+
+    ASTParser parser = ASTParser.newParser(AST.JLS11); // handles JDK 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6
+    parser.setSource(fileContent.toCharArray());
+    // In order to parse 1.6 code, some compiler options need to be set to 1.6
+    Map<String, String> options = JavaCore.getOptions();
+    JavaCore.setComplianceOptions(JavaCore.VERSION_1_8, options);
+    parser.setCompilerOptions(options);
+
+    CompilationUnit result = (CompilationUnit) parser.createAST(null);
+    return result;
+  }
+
+
+  public static List<String> readListFromFile(String path) {
+    List<String> result = new ArrayList<>();
+    File file = new File(path);
+    try {
+      InputStream is = new FileInputStream(file);
+      if (file.exists() && file.isFile()) {
+        BufferedReader br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
+        String line = null;
+        while ((line = br.readLine()) != null) {
+          result.add(line);
+        }
+        br.close();
+      }
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+    return result;
+  }
+
+  public static void writeListToFile(String path,List<String> line) {
+    File file = new File(path);
+    try {
+      FileOutputStream fos = new FileOutputStream(path,false);
+      if (file.exists() && file.isFile()) {
+        BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(fos, StandardCharsets.UTF_8));
+        for(String s:line) {
+          bw.write(s);
+          bw.newLine();
+          bw.flush();
+        }
+        bw.close();
+      }
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+  }
+
+  public static void copyFileToTarget(String fileFullNameCurrent, String fileFullNameTarget){
+    try{
+      File oldName = new File(fileFullNameCurrent);
+      if (!oldName.exists() || oldName.isDirectory()) {
+        return;
+      }
+      File newName = new File(fileFullNameTarget);
+      if(newName.isDirectory()){
+        return;
+      }
+      if (newName.exists()) {
+        newName.delete();
+      }
+      File parentDir = new File(newName.getParent());
+      if (!parentDir.exists()) {
+        parentDir.mkdirs();
+      }
+      FileUtils.copyFile(oldName, newName);
+
+    }catch (Exception e){
+      e.printStackTrace();
+    }
+
+  }
+
+  public static void emptyFolder(File dir){
+    if(dir.exists() && dir.isDirectory()){
+      File[] files = dir.listFiles();
+      for(File file:files){
+        if(file.isDirectory()){
+          emptyFolder(file);
+        }else{
+          file.delete();
+        }
+      }
+    }
+  }
+
 }

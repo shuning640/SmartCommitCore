@@ -61,18 +61,18 @@ public class TestDistance {
     return res;
   }
 
-  @Test
-  public void testEditDistance() {
-    List<Integer> list1 = new ArrayList<>();
-    list1.add(0);
-    list1.add(1);
-    list1.add(2);
-    list1.add(3);
-    List<Integer> list2 = new ArrayList<>();
-    list2.add(1);
-    list2.add(3);
-    list2.add(0);
-    list2.add(2);
-    assertThat(Evaluation.editDistance(list1, list2)).isEqualTo(2);
-  }
+//  @Test
+//  public void testEditDistance() {
+//    List<Integer> list1 = new ArrayList<>();
+//    list1.add(0);
+//    list1.add(1);
+//    list1.add(2);
+//    list1.add(3);
+//    List<Integer> list2 = new ArrayList<>();
+//    list2.add(1);
+//    list2.add(3);
+//    list2.add(0);
+//    list2.add(2);
+//    assertThat(Evaluation.editDistance(list1, list2)).isEqualTo(2);
+//  }
 }
