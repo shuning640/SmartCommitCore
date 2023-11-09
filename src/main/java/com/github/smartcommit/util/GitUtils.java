@@ -2,6 +2,7 @@ package com.github.smartcommit.util;
 
 import com.github.smartcommit.model.HunkEntity;
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.ResetCommand;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.diff.Edit;
@@ -17,6 +18,7 @@ import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.eclipse.jgit.treewalk.AbstractTreeIterator;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.jgit.util.io.DisabledOutputStream;
+
 
 import java.io.File;
 import java.util.LinkedList;
@@ -107,7 +109,8 @@ public class GitUtils {
 
     public static boolean checkout(String commitID, File codeDir) {
         try (Git git = Git.open(codeDir)) {
-            git.checkout().setName(commitID).call();
+            git.reset().setMode(ResetCommand.ResetType.HARD);
+            git.checkout().setForce(true).setName(commitID).call();
             return true;
         } catch (Exception e) {
             e.printStackTrace();
@@ -115,7 +118,7 @@ public class GitUtils {
         }
     }
 
-    public static boolean areCommitsConsecutive(File codeDir, String commitId1, String commitId2) {
+    public static boolean areCommitsConsecutive(File codeDir, String commitId2, String commitId1) {
         FileRepositoryBuilder builder = new FileRepositoryBuilder();
         try (Repository repository = builder.readEnvironment().findGitDir(codeDir).build()) {
             RevWalk revWalk = new RevWalk(repository);

@@ -42,15 +42,10 @@ public class Revert {
                 File rfcDir = sourceCodeManager.checkout(regressionId, rfc, projectDir, projectName);
                 rfc.setLocalCodeDir(rfcDir);
 
-                String pathTmp = rfc.getLocalCodeDir().toString().replace("_rfc","_tmp");
-                Utils.copyDirToTarget(projectDir.getAbsolutePath(),pathTmp);
-                if(!GitUtils.areCommitsConsecutive(new File(pathTmp), regression.getWork().getCommitID(), regression.getRic().getCommitID())){
+                if(!GitUtils.areCommitsConsecutive(rfcDir, regression.getWork().getCommitID(), regression.getRic().getCommitID())){
                     System.out.println("regression: " + regression.getId() + " is not consecutive");
-                    FileUtils.deleteDirectory(new File(pathTmp));
-                    FileUtils.deleteDirectory(rfcDir);
                     continue;
                 }
-                FileUtils.deleteDirectory(new File(pathTmp));
 
                 Revision ric = regression.getRic();
                 File ricDir = sourceCodeManager.checkout(regressionId, ric, projectDir, projectName);
