@@ -109,7 +109,7 @@ public class GitUtils {
 
     public static boolean checkout(String commitID, File codeDir) {
         try (Git git = Git.open(codeDir)) {
-            git.reset().setMode(ResetCommand.ResetType.HARD);
+            git.reset().setMode(ResetCommand.ResetType.HARD).call();
             git.checkout().setForce(true).setName(commitID).call();
             return true;
         } catch (Exception e) {
