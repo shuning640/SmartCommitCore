@@ -117,7 +117,7 @@ public class GitUtils {
 
     public static boolean areCommitsConsecutive(File codeDir, String commitId1, String commitId2) {
         FileRepositoryBuilder builder = new FileRepositoryBuilder();
-        try (Repository repository = builder.readEnvironment().findGitDir(codeDir).build(); Git git = new Git(repository)) {
+        try (Repository repository = builder.readEnvironment().findGitDir(codeDir).build()) {
             RevWalk revWalk = new RevWalk(repository);
 
             RevCommit commit1 = revWalk.parseCommit(ObjectId.fromString(commitId1));

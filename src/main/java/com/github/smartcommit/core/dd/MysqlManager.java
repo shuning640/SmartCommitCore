@@ -129,7 +129,7 @@ public class MysqlManager {
         try {
             pstmt =conn.prepareStatement("insert into group_revert_result(regression_id,group_num,hunk_num,pass_num,result_hunk_num,ce_num) " +
                     "values(?,?,?,?,?,?)");
-            pstmt.setString(1,regressionId);
+            pstmt.setInt(1, Integer.parseInt(regressionId));
             pstmt.setInt(2,groupsNum);
             pstmt.setInt(3,hunkNum);
             pstmt.setInt(4,passNum);

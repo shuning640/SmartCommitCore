@@ -12,6 +12,7 @@ import com.github.smartcommit.util.Utils;
 import org.apache.commons.io.FileUtils;
 
 import java.io.File;
+import java.io.PrintStream;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -25,21 +26,31 @@ public class Revert {
     static SourceCodeManager sourceCodeManager = new SourceCodeManager();
 
     public static void main(String [] args) throws Exception {
-        String sql = "select * from regressions_all where is_clean=1 and is_dirty=0";
+//        String sql = "select * from regressions_all where is_clean=1 and is_dirty=0 and id not in (select regression_id from group_revert_result);\n";
+        String sql = "select * from regressions_all where id = 3";
         List<Regression> regressionList = MysqlManager.selectCleanRegressions(sql);
+        PrintStream o = new PrintStream(new File("log.txt"));
+//        System.setOut(o);
         for (int i = 0; i < regressionList.size(); i++) {
             try{
                 Regression regression = regressionList.get(i);
                 String projectName = regression.getProjectFullName();
                 File projectDir = sourceCodeManager.getProjectDir(regression.getProjectFullName());
                 String regressionId = regression.getId();
-                if(!GitUtils.areCommitsConsecutive(projectDir, regression.getWork().getCommitID(), regression.getRic().getCommitID())){
-                    System.out.println("regression: " + regression.getId() + " is not consecutive");
-                    continue;
-                }
+
                 Revision rfc = regression.getRfc();
                 File rfcDir = sourceCodeManager.checkout(regressionId, rfc, projectDir, projectName);
                 rfc.setLocalCodeDir(rfcDir);
+
+                String pathTmp = rfc.getLocalCodeDir().toString().replace("_rfc","_tmp");
+                Utils.copyDirToTarget(projectDir.getAbsolutePath(),pathTmp);
+                if(!GitUtils.areCommitsConsecutive(new File(pathTmp), regression.getWork().getCommitID(), regression.getRic().getCommitID())){
+                    System.out.println("regression: " + regression.getId() + " is not consecutive");
+                    FileUtils.deleteDirectory(new File(pathTmp));
+                    FileUtils.deleteDirectory(rfcDir);
+                    continue;
+                }
+                FileUtils.deleteDirectory(new File(pathTmp));
 
                 Revision ric = regression.getRic();
                 File ricDir = sourceCodeManager.checkout(regressionId, ric, projectDir, projectName);
@@ -69,7 +80,7 @@ public class Revert {
                     revert(path,hunks);
                     Executor executor = new Executor();
                     executor.setDirectory(new File(path));
-                    String result = executor.exec("chmod u+x *.sh; ./build.sh; ./test.sh").trim();
+                    String result = executor.exec("chmod u+x build.sh; chmod u+x test.sh; ./build.sh; ./test.sh").trim();
                     System.out.println(entry.getKey() + ": Hunk size " + hunks.size() + "; Revert result " + result);
                     hunkNums.add(hunks.size());
                     if(result.contains("PASS")){
@@ -80,7 +91,10 @@ public class Revert {
                     }
                 }
                 int hunkSum = hunkNums.stream().mapToInt(Integer::intValue).sum();
-                Integer minValue = Collections.min(passGroups.values());
+                int minValue = 0;
+                if(!passGroups.isEmpty()){
+                    minValue = Collections.min(passGroups.values());
+                }
 
                 System.out.println(regressionId +  ": GroupSize" + groups.size() + " HunkSum" + hunkSum + " PassGroupNum" + passGroups.size() + " MinHunkNum" + minValue);
                 MysqlManager.insertGroupRevertResult(regressionId, groups.size(), hunkSum, passGroups.size(), minValue, ceGroups.size());
