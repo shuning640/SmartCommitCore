@@ -121,12 +121,18 @@ public class GitUtils {
             RevWalk revWalk = new RevWalk(repository);
 
             RevCommit commit1 = revWalk.parseCommit(ObjectId.fromString(commitId1));
-            RevCommit commit2 = revWalk.parseCommit(ObjectId.fromString(commitId2));
-
-            revWalk.markStart(commit1);
-            revWalk.markUninteresting(commit2);
-
-            return revWalk.next() == null;
+            int pcount = commit1.getParentCount();
+            RevCommit parentCommit =null;
+            String parentCommitID="";
+            for (int i =0;i<pcount;i++){
+                parentCommit = commit1.getParent(i);
+                if (parentCommit != null){
+                    parentCommitID=parentCommit.getName();
+                }
+                if (parentCommitID.equals(commitId2)){
+                    return true;
+                }
+            }
         } catch (Exception exception) {
             exception.printStackTrace();
         }
