@@ -26,8 +26,8 @@ public class Revert {
     static SourceCodeManager sourceCodeManager = new SourceCodeManager();
 
     public static void main(String [] args) throws Exception {
-        String sql = "select * from regressions_all where is_clean=1 and is_dirty=0 and id not in (select regression_id from group_revert_result);\n";
-//        String sql = "select * from regressions_all where id = 2";
+//        String sql = "select * from regressions_all where is_clean=1 and is_dirty=0 and id not in (select regression_id from group_revert_result);\n";
+        String sql = "select * from regressions_all where id = 50";
         List<Regression> regressionList = MysqlManager.selectCleanRegressions(sql);
         PrintStream o = new PrintStream(new File("log.txt"));
         System.setOut(o);
@@ -38,6 +38,10 @@ public class Revert {
                 File projectDir = sourceCodeManager.getProjectDir(regression.getProjectFullName());
                 String regressionId = regression.getId();
 
+                if(projectName.contains("verdict-project_verdict")){
+                    System.out.println("regression: " + regression.getId() + " is verdict project");
+                    continue;
+                }
                 Revision rfc = regression.getRfc();
                 File rfcDir = sourceCodeManager.checkout(regressionId, rfc, projectDir, projectName);
                 rfc.setLocalCodeDir(rfcDir);
@@ -93,7 +97,7 @@ public class Revert {
                 }
 
                 System.out.println(regressionId +  ": GroupSize" + groups.size() + " HunkSum" + hunkSum + " PassGroupNum" + passGroups.size() + " MinHunkNum" + minValue);
-                MysqlManager.insertGroupRevertResult(regressionId, groups.size(), hunkSum, passGroups.size(), minValue, ceGroups.size());
+//                MysqlManager.insertGroupRevertResult(regressionId, groups.size(), hunkSum, passGroups.size(), minValue, ceGroups.size());
 
                 FileUtils.deleteDirectory(rfcDir);
                 FileUtils.deleteDirectory(ricDir);
@@ -103,10 +107,6 @@ public class Revert {
             catch (Exception e){
                 e.printStackTrace();
             }
-//            finally {
-//                Utils.emptyFolder(new File(Config.TEMP_DIR));
-//                Utils.emptyFolder(new File(Config.CACHE_DIR));
-//            }
         }
     }
 

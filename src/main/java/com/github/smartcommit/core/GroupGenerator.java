@@ -1,5 +1,6 @@
 package com.github.smartcommit.core;
 
+import com.github.smartcommit.io.DiffGraphExporter;
 import com.github.smartcommit.model.DiffFile;
 import com.github.smartcommit.model.DiffHunk;
 import com.github.smartcommit.model.Group;
@@ -20,11 +21,17 @@ import org.jgrapht.Graph;
 import org.jgrapht.Graphs;
 import org.jgrapht.alg.connectivity.ConnectivityInspector;
 import org.jgrapht.graph.builder.GraphTypeBuilder;
+import org.jgrapht.io.Attribute;
+import org.jgrapht.io.AttributeType;
+import org.jgrapht.io.DOTExporter;
+import org.jgrapht.io.DefaultAttribute;
 import org.refactoringminer.api.Refactoring;
 import org.refactoringminer.api.RefactoringMinerTimedOutException;
 
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.StringWriter;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
@@ -117,7 +124,8 @@ public class GroupGenerator {
   }
 
   /** Build edges in the diff graph */
-  public void buildDiffGraph() {
+  //todo 计算edge weight的主要函数
+  public String buildDiffGraph() {
     // cache all links from base/current graph as a top order
     Map<String, Set<String>> hardLinks =
         Utils.mergeTwoMaps(analyzeDefUse(baseGraph), analyzeDefUse(currentGraph));
@@ -271,6 +279,7 @@ public class GroupGenerator {
       }
     }
     createEdges(reformat, DiffEdgeType.REFORMAT, 1.0);
+    return DiffGraphExporter.exportAsDotWithType(diffGraph);
   }
 
   private Map<String, Set<String>> analyzeDefUse(Graph<Node, Edge> graph) {
@@ -1212,9 +1221,9 @@ public class GroupGenerator {
    * @return
    */
   public boolean detectReformatting(DiffHunk diffHunk) {
-    return Utils.convertListToStringNoFormat(diffHunk.getBaseHunk().getCodeSnippet())
-        .equalsIgnoreCase(
-            (Utils.convertListToStringNoFormat(diffHunk.getCurrentHunk().getCodeSnippet())));
+    String baseString = Utils.convertListToStringNoFormat(diffHunk.getBaseHunk().getCodeSnippet());
+    String currentString = Utils.convertListToStringNoFormat(diffHunk.getCurrentHunk().getCodeSnippet());
+    return baseString.equalsIgnoreCase((currentString));
   }
 
   public void enableRefDetection(boolean enable) {
@@ -1232,4 +1241,5 @@ public class GroupGenerator {
   public void setMaxDistance(int maxDistance) {
     this.maxDistance = maxDistance;
   }
+
 }

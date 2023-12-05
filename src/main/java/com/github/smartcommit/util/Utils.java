@@ -21,10 +21,7 @@ import org.refactoringminer.api.RefactoringType;
 import java.io.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
+import java.nio.file.*;
 import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -888,5 +885,19 @@ public class Utils {
       }
     }
   }
+
+  public static void moveFile(String tmpDir, String outputDir, String fileName) {
+    // 构建源文件和目标文件的路径
+    Path source = Paths.get(tmpDir, fileName);
+    Path destination = Paths.get(outputDir, fileName);
+
+    try {
+      // 尝试移动文件
+      Files.move(source, destination, StandardCopyOption.REPLACE_EXISTING);
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+  }
+
 
 }

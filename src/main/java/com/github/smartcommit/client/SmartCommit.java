@@ -3,6 +3,7 @@ package com.github.smartcommit.client;
 import com.github.smartcommit.core.GraphBuilder;
 import com.github.smartcommit.core.GroupGenerator;
 import com.github.smartcommit.core.RepoAnalyzer;
+import com.github.smartcommit.core.dd.MysqlManager;
 import com.github.smartcommit.io.DataCollector;
 import com.github.smartcommit.model.*;
 import com.github.smartcommit.model.constant.ChangeType;
@@ -10,6 +11,7 @@ import com.github.smartcommit.model.constant.GroupLabel;
 import com.github.smartcommit.model.constant.Version;
 import com.github.smartcommit.model.graph.Edge;
 import com.github.smartcommit.model.graph.Node;
+import com.github.smartcommit.util.Executor;
 import com.github.smartcommit.util.GitServiceCGit;
 import com.github.smartcommit.util.Utils;
 import com.google.gson.Gson;
@@ -42,7 +44,7 @@ public class SmartCommit {
   // options and default
   private boolean detectRefactorings = true;
   private boolean processNonJavaChanges = false;
-  private double weightThreshold = 0D;
+  private double weightThreshold = 0.8D;
   private double minSimilarity = 0.8D;
   private int maxDistance = 2;
 
@@ -206,6 +208,10 @@ public class SmartCommit {
     // 1. analyze the repo
     RepoAnalyzer repoAnalyzer = new RepoAnalyzer(repoID, repoName, repoPath);
     List<DiffFile> diffFiles = repoAnalyzer.analyzeCommit(commitID);
+    if(diffFiles.size() > 200){
+        logger.info("Too many files to analyze at commit: " + commitID);
+        return new HashMap<>();
+    }
     List<DiffHunk> allDiffHunks = repoAnalyzer.getDiffHunks();
 
     if (diffFiles.isEmpty() || allDiffHunks.isEmpty()) {
@@ -270,7 +276,7 @@ public class SmartCommit {
     generator.setMaxDistance(maxDistance);
     generator.enableRefDetection(detectRefactorings);
     generator.enableNonJavaChanges(processNonJavaChanges);
-    generator.buildDiffGraph();
+    Utils.writeStringToFile(generator.buildDiffGraph(), tempDir + File.separator + "diffGraph.dot");
     return generator.generateGroups(weightThreshold);
   }
 
@@ -355,6 +361,10 @@ public class SmartCommit {
    * @param outputDir output directory path
    */
   public void exportGroupResults(Map<String, Group> generatedGroups, String outputDir) {
+    Utils.moveFile(tempDir, outputDir,  "diffGraph.dot");
+    com.github.smartcommit.util.Executor executor = new Executor();
+    executor.setDirectory(new File(outputDir));
+    executor.exec("dot -Tpng diffGraph.dot -o diffGraph.png");
     Gson gson = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     for (Map.Entry<String, Group> entry : generatedGroups.entrySet()) {
       Utils.writeStringToFile(
@@ -534,4 +544,25 @@ public class SmartCommit {
       return false;
     }
   }
+
+  public static void main(String [] args) throws Exception {
+//        String sql = "select * from regressions_all where is_clean=1 and is_dirty=0 and id not in (select regression_id from group_revert_result);\n";
+    String sql = "select * from regressions_all where id = 102";
+    List<Regression> regressionList = MysqlManager.selectCleanRegressions(sql);
+    for (int i = 0; i < regressionList.size(); i++) {
+      try{
+        Regression regression = regressionList.get(i);
+        String projectName = regression.getProjectFullName();
+        Revision ric = regression.getRic();
+        SmartCommit smartCommit = new SmartCommit(String.valueOf(projectName.hashCode()),
+                projectName, Config.REPO_PATH + File.separator + projectName, Config.TEMP_DIR + projectName);
+        Map<String, Group> groups = smartCommit.analyzeCommit(ric.getCommitID());
+        System.out.println("regression: " + regression.getId() + " group size: " + groups.size());
+      }
+      catch (Exception e){
+        e.printStackTrace();
+      }
+    }
+  }
+
 }
