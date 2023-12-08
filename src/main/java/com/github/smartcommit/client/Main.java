@@ -13,7 +13,7 @@ public class Main {
     BasicConfigurator.configure();
     org.apache.log4j.Logger.getRootLogger().setLevel(Level.INFO);
 
-    String COMMIT_ID = "0867549b20c6a70fde8a11b41116034c2e94083b";
+    String COMMIT_ID = "0f3e6d9";
     try {
       SmartCommit smartCommit =
           new SmartCommit(Config.REPO_ID, Config.REPO_NAME, Config.REPO_PATH + Config.REPO_NAME, Config.TEMP_DIR + Config.REPO_NAME);

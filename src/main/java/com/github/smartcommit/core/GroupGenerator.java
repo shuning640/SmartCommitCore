@@ -462,7 +462,7 @@ public class GroupGenerator {
         individuals.add(findNodeByIndex(diffHunk.getUniqueIndex()));
       }
     }
-    assignIndividuals(result, individuals);
+//    assignIndividuals(result, individuals);
     Map<String, Set<DiffNode>> groupByFile = new HashMap<>();
     for (DiffNode node : individuals) {
       String fileIndex = node.getFileIndex().toString();

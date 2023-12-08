@@ -5,7 +5,7 @@ import java.io.File;
 /** Store the constants as the config */
 public final class Config {
   // at commit
-  public static final String REPO_NAME = "alibaba_fastjson";
+  public static final String REPO_NAME = "uniVocity_univocity-parsers";
 //  public static final String REPO_PATH = System.getProperty("user.home") + File.separator + "meta_projects" + File.separator;//99服务器
 //  public static final String REPO_PATH = System.getProperty("user.home") + File.separator + "dd" + File.separator + "ddj_space" + File.separator + "meta_projects" + File.separator;//95服务器
   public static final String REPO_PATH = System.getProperty("user.home")+ File.separator + "ddj_space" + File.separator + "meta_projects" + File.separator;
@@ -16,7 +16,7 @@ public final class Config {
   //  public static final String REPO_PATH = "~/coding/dev" + File.separator + REPO_NAME;
 
   // arguments
-  public static final Double WEIGHT_THRESHOLD = 0D;
+  public static final Double WEIGHT_THRESHOLD = 0.8D;
   public static final Double MIN_SIMILARITY = 0.8D;
   // {hunk: 0 (default), member: 1, class: 2, package: 3}
   public static final Integer MAX_DISTANCE = 2;

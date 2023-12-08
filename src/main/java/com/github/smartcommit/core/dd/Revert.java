@@ -26,11 +26,11 @@ public class Revert {
     static SourceCodeManager sourceCodeManager = new SourceCodeManager();
 
     public static void main(String [] args) throws Exception {
-//        String sql = "select * from regressions_all where is_clean=1 and is_dirty=0 and id not in (select regression_id from group_revert_result);\n";
-        String sql = "select * from regressions_all where id = 50";
+        String sql = "select * from regressions_all where is_clean=1 and is_dirty=0 and id not in (select regression_id from group_revert_result);\n";
+//        String sql = "select * from regressions_all where id = 102";
         List<Regression> regressionList = MysqlManager.selectCleanRegressions(sql);
         PrintStream o = new PrintStream(new File("log.txt"));
-        System.setOut(o);
+//        System.setOut(o);
         for (int i = 0; i < regressionList.size(); i++) {
             try{
                 Regression regression = regressionList.get(i);
@@ -75,12 +75,14 @@ public class Revert {
                 Map<String, Integer> ceGroups = new HashMap<>();
                 for(Map.Entry<String, Group> entry: groups.entrySet()){
                     List<HunkEntity> hunks = smartCommit.group2Hunks(entry.getValue());
+                    hunks.removeIf(hunkEntity -> hunkEntity.getNewPath().contains("test") || hunkEntity.getOldPath().contains("test"));
                     String path = ric.getLocalCodeDir().toString().replace("_ric","_tmp");
                     Utils.copyDirToTarget(ric.getLocalCodeDir().toString(),path);
                     revert(path,hunks);
                     Executor executor = new Executor();
                     executor.setDirectory(new File(path));
-                    String result = executor.exec("chmod u+x build.sh; chmod u+x test.sh; ./build.sh; ./test.sh").trim();
+                    String result = executor.exec("export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64; " +
+                            "chmod u+x build.sh; chmod u+x test.sh; ./build.sh; ./test.sh; ").trim();
                     System.out.println(entry.getKey() + ": Hunk size " + hunks.size() + "; Revert result " + result);
                     hunkNums.add(hunks.size());
                     if(result.contains("PASS")){
@@ -97,7 +99,7 @@ public class Revert {
                 }
 
                 System.out.println(regressionId +  ": GroupSize" + groups.size() + " HunkSum" + hunkSum + " PassGroupNum" + passGroups.size() + " MinHunkNum" + minValue);
-//                MysqlManager.insertGroupRevertResult(regressionId, groups.size(), hunkSum, passGroups.size(), minValue, ceGroups.size());
+                MysqlManager.insertGroupRevertResult(regressionId, groups.size(), hunkSum, passGroups.size(), minValue, ceGroups.size());
 
                 FileUtils.deleteDirectory(rfcDir);
                 FileUtils.deleteDirectory(ricDir);

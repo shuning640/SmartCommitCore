@@ -185,6 +185,7 @@ public class SourceCodeManager {
                 testFile.createNewFile();
                 String s1 = "#!/bin/bash" + "\n";
                 String s2 = "_OUT=$(timeout 300 mvn test -Dtest=" + testcase + " 2>&1)" + "\n";
+//                String s2 = "_OUT=$(timeout 300 mvn test -Dtest=" + testcase + " 2>&1 | tr -d '\\0')" + "\n/bin/echo -n ${_OUT}";
                 String s3 = "SUCCESS=$(echo ${_OUT} | grep -c 'BUILD SUCCESS')" + "\n";
                 String s4 = "CE=$(echo ${_OUT} | grep -c 'COMPILATION ERROR')" + "\n";
                 String s5 = "if\n" +

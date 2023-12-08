@@ -214,6 +214,9 @@ public class SmartCommit {
     }
     List<DiffHunk> allDiffHunks = repoAnalyzer.getDiffHunks();
 
+//    for(DiffHunk diffHunk : allDiffHunks){
+//      diffHunk.setAstActions(analyzeASTActions(diffHunk));
+//    }
     if (diffFiles.isEmpty() || allDiffHunks.isEmpty()) {
       logger.info("No changes at commit: " + commitID);
       return new HashMap<>();
@@ -547,7 +550,7 @@ public class SmartCommit {
 
   public static void main(String [] args) throws Exception {
 //        String sql = "select * from regressions_all where is_clean=1 and is_dirty=0 and id not in (select regression_id from group_revert_result);\n";
-    String sql = "select * from regressions_all where id = 102";
+    String sql = "select * from regressions_all where id = 191";
     List<Regression> regressionList = MysqlManager.selectCleanRegressions(sql);
     for (int i = 0; i < regressionList.size(); i++) {
       try{

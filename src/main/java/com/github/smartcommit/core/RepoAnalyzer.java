@@ -10,6 +10,8 @@ import org.apache.log4j.Logger;
 
 import java.util.*;
 
+import static com.github.smartcommit.io.DataCollector.analyzeASTActions;
+
 // import com.github.gumtreediff.gen.jdt.JdtTreeGenerator;
 
 public class RepoAnalyzer {
@@ -70,6 +72,11 @@ public class RepoAnalyzer {
     ArrayList<DiffFile> diffFiles = gitService.getChangedFilesAtCommit(this.repoPath, commitID);
     if (!diffFiles.isEmpty()) {
       gitService.getDiffHunksAtCommit(this.repoPath, commitID, diffFiles);
+//      for (DiffFile diffFile : diffFiles) {
+//        for (DiffHunk diffHunk : diffFile.getDiffHunks()) {
+//          diffHunk.setAstActions(analyzeASTActions(diffHunk));
+//        }
+//      }
       this.diffFiles = diffFiles;
       this.idToDiffFileMap = generateIDToDiffFileMap();
     }
