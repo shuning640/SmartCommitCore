@@ -38,10 +38,6 @@ public class Revert {
                 File projectDir = sourceCodeManager.getProjectDir(regression.getProjectFullName());
                 String regressionId = regression.getId();
 
-                if(projectName.contains("verdict-project_verdict")){
-                    System.out.println("regression: " + regression.getId() + " is verdict project");
-                    continue;
-                }
                 Revision rfc = regression.getRfc();
                 File rfcDir = sourceCodeManager.checkout(regressionId, rfc, projectDir, projectName);
                 rfc.setLocalCodeDir(rfcDir);
@@ -73,9 +69,13 @@ public class Revert {
                 List<Integer> hunkNums = new ArrayList<>();
                 Map<String, Integer> passGroups = new HashMap<>();
                 Map<String, Integer> ceGroups = new HashMap<>();
+                int a = 0;
                 for(Map.Entry<String, Group> entry: groups.entrySet()){
                     List<HunkEntity> hunks = smartCommit.group2Hunks(entry.getValue());
                     hunks.removeIf(hunkEntity -> hunkEntity.getNewPath().contains("test") || hunkEntity.getOldPath().contains("test"));
+                    if(hunks.size() == 0){
+                        continue;
+                    }
                     String path = ric.getLocalCodeDir().toString().replace("_ric","_tmp");
                     Utils.copyDirToTarget(ric.getLocalCodeDir().toString(),path);
                     revert(path,hunks);

@@ -4,7 +4,6 @@ import com.github.smartcommit.model.Group;
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Level;
 
-import java.io.File;
 import java.util.Map;
 
 public class Main {
@@ -13,7 +12,7 @@ public class Main {
     BasicConfigurator.configure();
     org.apache.log4j.Logger.getRootLogger().setLevel(Level.INFO);
 
-    String COMMIT_ID = "0f3e6d9";
+    String COMMIT_ID = "c86ed20";
     try {
       SmartCommit smartCommit =
           new SmartCommit(Config.REPO_ID, Config.REPO_NAME, Config.REPO_PATH + Config.REPO_NAME, Config.TEMP_DIR + Config.REPO_NAME);

@@ -21,17 +21,11 @@ import org.jgrapht.Graph;
 import org.jgrapht.Graphs;
 import org.jgrapht.alg.connectivity.ConnectivityInspector;
 import org.jgrapht.graph.builder.GraphTypeBuilder;
-import org.jgrapht.io.Attribute;
-import org.jgrapht.io.AttributeType;
-import org.jgrapht.io.DOTExporter;
-import org.jgrapht.io.DefaultAttribute;
 import org.refactoringminer.api.Refactoring;
 import org.refactoringminer.api.RefactoringMinerTimedOutException;
 
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
@@ -202,12 +196,11 @@ public class GroupGenerator {
       }
     }
 
+    // reformat
     Set<DiffHunk> reformat = new TreeSet<>(diffHunkComparator());
-
     for (int i = 0; i < diffHunks.size(); ++i) {
       DiffHunk diffHunk = diffHunks.get(i);
       // changes that does not actually change code and remove
-      // reformat
       if (diffHunk.getFileType().equals(FileType.JAVA)) {
         if (detectReformatting(diffHunk)) {
           reformat.add(diffHunk);
@@ -240,14 +233,14 @@ public class GroupGenerator {
                 similarity);
           }
           // distance (1/n)
-          int distance = detectProxmity(diffHunk, diffHunk1);
-          if (distance > 0 && distance <= maxDistance) {
-            createEdge(
-                diffHunk.getUniqueIndex(),
-                diffHunk1.getUniqueIndex(),
-                DiffEdgeType.CLOSE,
-                Utils.formatDouble((double) 1 / distance));
-          }
+//          int distance = detectProxmity(diffHunk, diffHunk1);
+//          if (distance > 0 && distance <= maxDistance) {
+//            createEdge(
+//                diffHunk.getUniqueIndex(),
+//                diffHunk1.getUniqueIndex(),
+//                DiffEdgeType.CLOSE,
+//                Utils.formatDouble((double) 1 / distance));
+//          }
           if (diffHunk.getFileIndex().equals(diffHunk1.getFileIndex())) {
             // cross-version but similar (moving or refactoring)
             // condition: same parent scope (file level for now), delete and add
@@ -999,7 +992,8 @@ public class GroupGenerator {
             Utils.computeListSimilarity(diffHunk.getAstActions(), diffHunk1.getAstActions());
         double refSimi =
             Utils.computeListSimilarity(diffHunk.getRefActions(), diffHunk1.getRefActions());
-        return Utils.formatDouble((baseText + currentText + astSimi + refSimi) / 4);
+        return Utils.formatDouble((baseText + currentText) / 2);
+//        return Utils.formatDouble((baseText + currentText + astSimi + refSimi) / 4);
       }
     }
     return 0D;
@@ -1220,10 +1214,24 @@ public class GroupGenerator {
    * @param diffHunk
    * @return
    */
+//  public boolean detectReformatting(DiffHunk diffHunk) {
+//    String baseString = Utils.convertListToStringNoFormat(diffHunk.getBaseHunk().getCodeSnippet());
+//    String currentString = Utils.convertListToStringNoFormat(diffHunk.getCurrentHunk().getCodeSnippet());
+//    return baseString.equalsIgnoreCase((currentString));
+//  }
   public boolean detectReformatting(DiffHunk diffHunk) {
-    String baseString = Utils.convertListToStringNoFormat(diffHunk.getBaseHunk().getCodeSnippet());
-    String currentString = Utils.convertListToStringNoFormat(diffHunk.getCurrentHunk().getCodeSnippet());
+    String baseString = removeComments(Utils.convertListLinesToString(diffHunk.getBaseHunk().getCodeSnippet()));
+    String currentString = removeComments(Utils.convertListLinesToString(diffHunk.getCurrentHunk().getCodeSnippet()));
     return baseString.equalsIgnoreCase((currentString));
+  }
+
+  public static boolean detectReformatting(String baseString, String currentString) {
+    return removeComments(baseString).equalsIgnoreCase(removeComments(currentString));
+  }
+
+  public static String removeComments(String code) {
+    return code.replaceAll("//.*|/\\*(.|\\R)*?\\*/", "")
+            .replaceAll("\\\\t|[\\\\r?\\\\n]+|\\s+", "");
   }
 
   public void enableRefDetection(boolean enable) {

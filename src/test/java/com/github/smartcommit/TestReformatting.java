@@ -1,12 +1,15 @@
 package com.github.smartcommit;
 
+import com.github.smartcommit.core.GroupGenerator;
 import com.github.smartcommit.util.Utils;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class TestReformatting {
   @Test
@@ -14,10 +17,13 @@ public class TestReformatting {
     List<String> s1 = new ArrayList<>();
     s1.add("public static String formatPath(String path) {");
     List<String> s2 = new ArrayList<>();
-    s2.add("public     static String formatPath(String path) {\");");
+    s2.add("public     static String formatPath(String path) {");
     s2.add("\t\n");
-    assertThat(Utils.convertListToStringNoFormat(s1))
-        .isEqualTo(Utils.convertListToStringNoFormat(s2));
+    String baseString = Utils.convertListLinesToString(s1);
+    String currentString = Utils.convertListLinesToString(s2);
+    assertTrue(GroupGenerator.detectReformatting(baseString, currentString)) ;
+//    assertThat(Utils.convertListToStringNoFormat(s1))
+//        .isEqualTo(Utils.convertListToStringNoFormat(s2));
   }
 
   @Test
@@ -45,9 +51,11 @@ public class TestReformatting {
     s2.add("       * Convert system-dependent path to the unified unix style ");
     s2.add("*/\n");
     s2.add("  public static String formatPath(String path) {\n");
-
-    assertThat(Utils.convertListToStringNoFormat(s1))
-        .isEqualTo(Utils.convertListToStringNoFormat(s2));
+    String baseString = Utils.convertListLinesToString(s1);
+    String currentString = Utils.convertListLinesToString(s2);
+    assertTrue(GroupGenerator.detectReformatting(baseString, currentString)) ;
+//    assertThat(Utils.convertListToStringNoFormat(s1))
+//        .isEqualTo(Utils.convertListToStringNoFormat(s2));
   }
 
   @Test
