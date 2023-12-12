@@ -2,9 +2,10 @@ package com.github.smartcommit;
 
 import com.github.smartcommit.core.GroupGenerator;
 import com.github.smartcommit.util.Utils;
+import com.zhixiangli.code.similarity.CodeSimilarity;
+import com.zhixiangli.code.similarity.strategy.CosineSimilarity;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
-
 import java.util.ArrayList;
 import java.util.List;
 

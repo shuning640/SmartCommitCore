@@ -11,6 +11,8 @@ import com.github.smartcommit.model.diffgraph.DiffNode;
 import com.github.smartcommit.model.graph.Edge;
 import com.github.smartcommit.model.graph.Node;
 import com.github.smartcommit.util.Utils;
+import com.zhixiangli.code.similarity.CodeSimilarity;
+import com.zhixiangli.code.similarity.strategy.CosineSimilarity;
 import gr.uom.java.xmi.UMLModel;
 import gr.uom.java.xmi.UMLModelASTReader;
 import gr.uom.java.xmi.diff.CodeRange;
@@ -979,12 +981,11 @@ public class GroupGenerator {
         // TODO check length to early stop, avoid too low similarity computation
         // TODO use tokens to compute instead of whole string
         // textual similarity
-        double baseText =
-            Utils.cosineStringSimilarity(
+        CodeSimilarity cosineSimilarity = new CodeSimilarity(new CosineSimilarity());
+        double baseText = cosineSimilarity.get(
                 Utils.convertListLinesToString(diffHunk.getBaseHunk().getCodeSnippet()),
                 Utils.convertListLinesToString(diffHunk1.getBaseHunk().getCodeSnippet()));
-        double currentText =
-            Utils.cosineStringSimilarity(
+        double currentText = cosineSimilarity.get(
                 Utils.convertListLinesToString(diffHunk.getCurrentHunk().getCodeSnippet()),
                 Utils.convertListLinesToString(diffHunk1.getCurrentHunk().getCodeSnippet()));
         // change action similarity
@@ -1011,7 +1012,8 @@ public class GroupGenerator {
             diffHunk1.getChangeType().equals(ChangeType.ADDED)
                 ? diffHunk1.getCurrentHunk().getCodeSnippet()
                 : diffHunk1.getBaseHunk().getCodeSnippet());
-    return Utils.formatDouble(Utils.tokenStringSimilarity(left, right));
+    CodeSimilarity cosineSimilarity = new CodeSimilarity(new CosineSimilarity());
+    return Utils.formatDouble(cosineSimilarity.get(left, right));
   }
 
   /**
