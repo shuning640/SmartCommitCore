@@ -35,6 +35,11 @@ public class Revert {
             try{
                 Regression regression = regressionList.get(i);
                 String projectName = regression.getProjectFullName();
+                if(projectName.contains("verdict-project_verdict")){
+                    System.out.println("regression: " + regression.getId() + " is verdict project");
+                    continue;
+                }
+
                 File projectDir = sourceCodeManager.getProjectDir(regression.getProjectFullName());
                 String regressionId = regression.getId();
 

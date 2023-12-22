@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 public class TestSimilarity {
     @Test
     public void testCodeSimilarity() {
-        String a = "public static void main(String[] args) {System.out.println(1);}";
+        String a = "public static void main(String[] a) { System.out.println(12);}";
         String b = "public static void main(String[] args) {System.out.println(2);}";
         // default algorithm is Longest Common Subsequence.
         CodeSimilarity codeSimilarity = new CodeSimilarity();

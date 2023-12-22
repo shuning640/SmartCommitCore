@@ -1,6 +1,7 @@
 package com.github.smartcommit.core;
 
 import com.github.smartcommit.io.DiffGraphExporter;
+import com.github.smartcommit.model.Action;
 import com.github.smartcommit.model.DiffFile;
 import com.github.smartcommit.model.DiffHunk;
 import com.github.smartcommit.model.Group;
@@ -11,6 +12,7 @@ import com.github.smartcommit.model.diffgraph.DiffNode;
 import com.github.smartcommit.model.graph.Edge;
 import com.github.smartcommit.model.graph.Node;
 import com.github.smartcommit.util.Utils;
+import com.github.smartcommit.util.diffparser.api.model.Diff;
 import com.zhixiangli.code.similarity.CodeSimilarity;
 import com.zhixiangli.code.similarity.strategy.CosineSimilarity;
 import gr.uom.java.xmi.UMLModel;
@@ -194,7 +196,39 @@ public class GroupGenerator {
         service.shutdown();
       }
       if (!refDiffHunks.isEmpty()) {
-        createEdges(refDiffHunks, DiffEdgeType.REFACTOR, 1.0);
+//        createEdges(refDiffHunks, DiffEdgeType.REFACTOR, 1.0);
+//        for (int i = 0; i < list.size() - 1; i++) {
+//          if (i + 1 < list.size()) {
+//            createEdge(list.get(i).getUniqueIndex(), list.get(i + 1).getUniqueIndex(), type, weight);
+//          }
+//        }
+        Map<Integer, Set<DiffHunk>> map = new HashMap<>();
+        // detect similar diffHunk
+        for (DiffHunk diffHunk : refDiffHunks) {
+          boolean foundGroup = false;
+          for (Map.Entry<Integer, Set<DiffHunk>> entry : map.entrySet()) {
+            for (DiffHunk diffHunk1 : entry.getValue()) {
+              if (detectRefAction(diffHunk, diffHunk1).size() > 0 ||
+                      detectCrossVersionSimilarity(diffHunk, diffHunk1) > minSimilarity ) {
+                entry.getValue().add(diffHunk);
+                foundGroup = true;
+                break;
+              }
+            }
+            if (foundGroup) {
+              break;
+            }
+          }
+          // if no similar diffHunk add new Set<DiffHunk>
+          if (!foundGroup) {
+            Set<DiffHunk> newSet = new TreeSet<>(diffHunkComparator());
+            newSet.add(diffHunk);
+            map.put(map.size() + 1, newSet);
+          }
+        }
+        for (Map.Entry<Integer, Set<DiffHunk>> entry : map.entrySet()) {
+          createEdges(entry.getValue(), DiffEdgeType.REFACTOR, 1.0);
+        }
       }
     }
 
@@ -235,6 +269,7 @@ public class GroupGenerator {
                 similarity);
           }
           // distance (1/n)
+          //todo 删除对于距离的分组
 //          int distance = detectProxmity(diffHunk, diffHunk1);
 //          if (distance > 0 && distance <= maxDistance) {
 //            createEdge(
@@ -457,7 +492,8 @@ public class GroupGenerator {
         individuals.add(findNodeByIndex(diffHunk.getUniqueIndex()));
       }
     }
-//    assignIndividuals(result, individuals);
+    //    assignIndividuals(result, individuals);
+    //todo 对剩余单个hunk的处理为按文件成组
     Map<String, Set<DiffNode>> groupByFile = new HashMap<>();
     for (DiffNode node : individuals) {
       String fileIndex = node.getFileIndex().toString();
@@ -467,6 +503,13 @@ public class GroupGenerator {
     for (Map.Entry<String, Set<DiffNode>> entry : groupByFile.entrySet()) {
       createGroup(result, entry.getValue(), new HashSet<>(), GroupLabel.OTHER);
     }
+
+    // 对剩余的单个hunk的处理现在为单个成组
+//    for (DiffNode node : individuals) {
+////      Set<DiffNode> individual = new HashSet<>(Arrays.asList(node));
+//      createGroup(result, new HashSet<>(Collections.singletonList(node)), new HashSet<>(), GroupLabel.OTHER);
+//    }
+
     return result;
   }
 
@@ -930,19 +973,21 @@ public class GroupGenerator {
       for (Refactoring refactoring : refactorings) {
         // greedy style: put all refactorings into one group
         for (CodeRange range : refactoring.leftSide()) {
-          Optional<DiffHunk> diffHunkOpt = getOverlappingDiffHunk(Version.BASE, range);
-          if (diffHunkOpt.isPresent()) {
-            DiffHunk diffHunk = diffHunkOpt.get();
-            diffHunk.addRefAction(Utils.convertRefactoringToAction(refactoring));
-            refDiffHunks.add(diffHunk);
+          Set<DiffHunk> diffHunkOpt = getOverlappingDiffHunk(Version.BASE, range);
+          if (diffHunkOpt.size() > 0) {
+            for(DiffHunk diffHunk : diffHunkOpt) {
+              diffHunk.addRefAction(Utils.convertRefactoringToAction(refactoring));
+              refDiffHunks.add(diffHunk);
+            }
           }
         }
         for (CodeRange range : refactoring.rightSide()) {
-          Optional<DiffHunk> diffHunkOpt = getOverlappingDiffHunk(Version.CURRENT, range);
-          if (diffHunkOpt.isPresent()) {
-            DiffHunk diffHunk = diffHunkOpt.get();
-            diffHunk.addRefAction(Utils.convertRefactoringToAction(refactoring));
-            refDiffHunks.add(diffHunk);
+          Set<DiffHunk> diffHunkOpt = getOverlappingDiffHunk(Version.CURRENT, range);
+          if (diffHunkOpt.size() > 0) {
+            for(DiffHunk diffHunk : diffHunkOpt) {
+              diffHunk.addRefAction(Utils.convertRefactoringToAction(refactoring));
+              refDiffHunks.add(diffHunk);
+            }
           }
         }
       }
@@ -951,6 +996,58 @@ public class GroupGenerator {
     }
     return refDiffHunks;
   }
+
+//  private Map<Integer, Set<DiffHunk>>  detectRefactorings(Map<Integer, Set<DiffHunk>>  refDiffHunks) {
+//    //    Set<DiffHunk> refDiffHunks = new TreeSet<>(ascendingByIndexComparator());
+//    Set<DiffHunk> diffHunkSet = new TreeSet<>(diffHunkComparator()); // 使用比较器初始化 TreeSet
+//
+//    try {
+//      File rootFolder1 = new File(srcDirs.getLeft());
+//      File rootFolder2 = new File(srcDirs.getRight());
+//
+//      UMLModel model1 = new UMLModelASTReader(rootFolder1).getUmlModel();
+//      UMLModel model2 = new UMLModelASTReader(rootFolder2).getUmlModel();
+//      UMLModelDiff modelDiff = model1.diff(model2);
+//
+//      List<Refactoring> refactorings = modelDiff.getRefactorings();
+//
+//      // for each refactoring, find the corresponding diff hunk
+//      for (Refactoring refactoring : refactorings) {
+//        // greedy style: put all refactorings into one group
+//        for (CodeRange range : refactoring.leftSide()) {
+//          Optional<DiffHunk> diffHunkOpt = getOverlappingDiffHunk(Version.BASE, range);
+//          if (diffHunkOpt.isPresent()) {
+//            DiffHunk diffHunk = diffHunkOpt.get();
+//            diffHunk.addRefAction(Utils.convertRefactoringToAction(refactoring));
+//            diffHunkSet.add(diffHunk);
+//          }
+//        }
+//        for (CodeRange range : refactoring.rightSide()) {
+//          Optional<DiffHunk> diffHunkOpt = getOverlappingDiffHunk(Version.CURRENT, range);
+//          if (diffHunkOpt.isPresent()) {
+//            DiffHunk diffHunk = diffHunkOpt.get();
+//            diffHunk.addRefAction(Utils.convertRefactoringToAction(refactoring));
+//            diffHunkSet.add(diffHunk);
+//          }
+//        }
+//      }
+//      // 将相似度接近的 diffHunk 放到同一个 set 中
+//        for (DiffHunk diffHunk : diffHunkSet) {
+//          for(DiffHunk diffHunk1 : diffHunkSet){
+//            if(diffHunk != diffHunk1){
+//              double similarity = detectCrossVersionSimilarity(diffHunk, diffHunk1);
+//              if(similarity > 0.8){
+//                diffHunk.addSimilarDiffHunk(diffHunk1);
+//              }
+//            }
+//          }
+//        }
+//
+//    } catch (RefactoringMinerTimedOutException | IOException e) {
+//      e.printStackTrace();
+//    }
+//    return refDiffHunks;
+//  }
 
   /**
    * Construct a comparator which rank the diffhunks firstly by fileIndex, secondly by diffHunkIndex
@@ -993,8 +1090,8 @@ public class GroupGenerator {
             Utils.computeListSimilarity(diffHunk.getAstActions(), diffHunk1.getAstActions());
         double refSimi =
             Utils.computeListSimilarity(diffHunk.getRefActions(), diffHunk1.getRefActions());
-        return Utils.formatDouble((baseText + currentText) / 2);
-//        return Utils.formatDouble((baseText + currentText + astSimi + refSimi) / 4);
+//        return Utils.formatDouble((baseText + currentText) / 2);
+        return Utils.formatDouble((baseText + currentText + astSimi + refSimi) / 4);
       }
     }
     return 0D;
@@ -1013,7 +1110,8 @@ public class GroupGenerator {
                 ? diffHunk1.getCurrentHunk().getCodeSnippet()
                 : diffHunk1.getBaseHunk().getCodeSnippet());
     CodeSimilarity cosineSimilarity = new CodeSimilarity(new CosineSimilarity());
-    return Utils.formatDouble(cosineSimilarity.get(left, right));
+    CodeSimilarity codeSimilarity = new CodeSimilarity();
+    return Utils.formatDouble((cosineSimilarity.get(left, right) + codeSimilarity.get(left, right)) / 2);
   }
 
   /**
@@ -1190,23 +1288,43 @@ public class GroupGenerator {
    *
    * @return
    */
-  private Optional<DiffHunk> getOverlappingDiffHunk(Version version, CodeRange codeRange) {
+//  private Optional<DiffHunk> getOverlappingDiffHunk(Version version, CodeRange codeRange) {
+//    for (DiffFile diffFile : diffFiles) {
+//      if (!codeRange.getFilePath().isEmpty()
+//          && !diffFile.getRelativePathOf(version).isEmpty()
+//          && codeRange.getFilePath().endsWith(diffFile.getRelativePathOf(version))) {
+//        for (DiffHunk diffHunk : diffFile.getDiffHunks()) {
+//          Pair<Integer, Integer> hunkRange = diffHunk.getCodeRangeOf(version);
+//          // overlapping: !(b1 < a2 || b2 < a1) = (b1 >= a2 && b2 >= a1)
+//          if (codeRange.getEndLine() >= hunkRange.getLeft()
+//              && hunkRange.getRight() >= codeRange.getStartLine()) {
+//            // suppose that one range is related with only one diff hunk
+//            //todo wrong suppose
+//            return Optional.of(diffHunk);
+//          }
+//        }
+//      }
+//    }
+//    return Optional.empty();
+//  }
+
+  private Set<DiffHunk> getOverlappingDiffHunk(Version version, CodeRange codeRange) {
+    Set<DiffHunk> refDiffHunks = new TreeSet<>(diffHunkComparator());
     for (DiffFile diffFile : diffFiles) {
       if (!codeRange.getFilePath().isEmpty()
-          && !diffFile.getRelativePathOf(version).isEmpty()
-          && codeRange.getFilePath().endsWith(diffFile.getRelativePathOf(version))) {
+              && !diffFile.getRelativePathOf(version).isEmpty()
+              && codeRange.getFilePath().endsWith(diffFile.getRelativePathOf(version))) {
         for (DiffHunk diffHunk : diffFile.getDiffHunks()) {
           Pair<Integer, Integer> hunkRange = diffHunk.getCodeRangeOf(version);
           // overlapping: !(b1 < a2 || b2 < a1) = (b1 >= a2 && b2 >= a1)
           if (codeRange.getEndLine() >= hunkRange.getLeft()
-              && hunkRange.getRight() >= codeRange.getStartLine()) {
-            // suppose that one range is related with only one diff hunk
-            return Optional.of(diffHunk);
+                  && hunkRange.getRight() >= codeRange.getStartLine()) {
+            refDiffHunks.add(diffHunk);
           }
         }
       }
     }
-    return Optional.empty();
+    return refDiffHunks;
   }
 
   /**
@@ -1232,6 +1350,7 @@ public class GroupGenerator {
   }
 
   public static String removeComments(String code) {
+//    return code.replaceAll("//.*|/\\*(?:.|[\\n\\r])*?\\*/", "")
     return code.replaceAll("//.*|/\\*(.|\\R)*?\\*/", "")
             .replaceAll("\\\\t|[\\\\r?\\\\n]+|\\s+", "");
   }
@@ -1252,4 +1371,17 @@ public class GroupGenerator {
     this.maxDistance = maxDistance;
   }
 
+  public List<Action> detectRefAction(DiffHunk diffHunk, DiffHunk diffHunk1){
+    List<Action> res = new ArrayList<>();
+    List<Action> list1 = diffHunk.getRefActions();
+    List<Action> list2 = diffHunk1.getRefActions();
+    for (Action action1 : list1) {
+      for (Action action2 : list2) {
+        if (action1.equals(action2)) {
+          res.add(action1);
+        }
+      }
+    }
+    return res;
+  }
 }
