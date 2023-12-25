@@ -12,8 +12,8 @@ import org.junit.jupiter.api.Test;
 public class TestSimilarity {
     @Test
     public void testCodeSimilarity() {
-        String a = "public static void main(String[] a) { System.out.println(12);}";
-        String b = "public static void main(String[] args) {System.out.println(2);}";
+        String a = "    @JsonProperty(\"external_url\")\n";
+        String b = "    @JsonProperty(\"html_url\")\n";
         // default algorithm is Longest Common Subsequence.
         CodeSimilarity codeSimilarity = new CodeSimilarity();
         System.out.println("codeSimilarity " + codeSimilarity.get(a, b));
