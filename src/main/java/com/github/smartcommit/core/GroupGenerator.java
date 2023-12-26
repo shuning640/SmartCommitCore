@@ -21,6 +21,10 @@ import gr.uom.java.xmi.diff.CodeRange;
 import gr.uom.java.xmi.diff.UMLModelDiff;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.log4j.Logger;
+import org.eclipse.jdt.core.dom.ASTNode;
+import org.eclipse.jdt.core.dom.MethodDeclaration;
+import org.eclipse.jdt.core.dom.Modifier;
+import org.eclipse.jdt.core.dom.TypeDeclaration;
 import org.jgrapht.Graph;
 import org.jgrapht.Graphs;
 import org.jgrapht.alg.connectivity.ConnectivityInspector;
@@ -33,6 +37,8 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
+
+import static com.github.smartcommit.io.DataCollector.analyzeASTActions;
 
 public class GroupGenerator {
   private static final Logger logger = Logger.getLogger(GroupGenerator.class);
@@ -310,6 +316,135 @@ public class GroupGenerator {
     }
     createEdges(reformat, DiffEdgeType.REFORMAT, 1.0);
     return DiffGraphExporter.exportAsDotWithType(diffGraph);
+  }
+
+  /** Build 3 graph: refactor, new feature, others */
+  public Map<String, Group>  build3Graph(String path) {
+    Map<String, Group> result = new LinkedHashMap<>(); // id:Group
+    Map<String, Set<String>> hardLinks = Utils.mergeTwoMaps(analyzeDefUse(baseGraph), analyzeDefUse(currentGraph));
+
+    //NONJAVA
+    List<DiffFile> nonJavaDiffFiles = diffFiles.stream()
+                    .filter(diffFile -> !diffFile.getFileType().equals(FileType.JAVA))
+                    .collect(Collectors.toList());
+    Set<DiffHunk> nonJavaDiffHunks =new TreeSet<>(diffHunkComparator());
+    for (DiffFile diffFile : nonJavaDiffFiles) {
+      nonJavaDiffHunks.addAll(diffFile.getDiffHunks());
+    }
+    createEdges(nonJavaDiffHunks, DiffEdgeType.NONJAVA, 1.0);
+    createGroup(result, hunks2Nodes(nonJavaDiffHunks), new HashSet<>(), GroupLabel.NONJAVA);
+
+    //test
+    Set<DiffHunk> testDiffHunks =new TreeSet<>(diffHunkComparator());
+    for (DiffHunk diffHunk : diffHunks) {
+      if(!indexToGroupMap.containsKey(diffHunk.getUniqueIndex()) && detectTest(diffHunk)){
+        testDiffHunks.add(diffHunk);
+      }
+    }
+    createEdges(testDiffHunks, DiffEdgeType.TEST, 1.0);
+    createGroup(result, hunks2Nodes(testDiffHunks), new HashSet<>(), GroupLabel.TEST);
+
+    // reformat
+    Set<DiffHunk> reformatDiffHunks = new TreeSet<>(diffHunkComparator());
+    for (int i = 0; i < diffHunks.size(); ++i) {
+      DiffHunk diffHunk = diffHunks.get(i);
+      // changes that does not actually change code and remove
+      if (!indexToGroupMap.containsKey(diffHunk.getUniqueIndex()) && diffHunk.getFileType().equals(FileType.JAVA)) {
+        if (detectReformatting(diffHunk)) {
+          reformatDiffHunks.add(diffHunk);
+          continue;
+        }
+      }
+    }
+    createEdges(reformatDiffHunks, DiffEdgeType.REFORMAT, 1.0);
+    createGroup(result, hunks2Nodes(reformatDiffHunks), new HashSet<>(), GroupLabel.REFORMAT);
+
+    // refactor
+    Set<DiffHunk> refDiffHunks = new TreeSet<>(diffHunkComparator());
+    ExecutorService service = Executors.newSingleThreadExecutor();
+    Future<?> f = null;
+    try {
+      Runnable r = () -> detectRefactorings(refDiffHunks);
+      f = service.submit(r);
+      f.get(300, TimeUnit.SECONDS);
+    } catch (TimeoutException e) {
+      f.cancel(true);
+      logger.warn("Ignore refactoring detection due to RM timeout: ", e);
+    } catch (ExecutionException | InterruptedException e) {
+      logger.warn("Ignore refactoring detection due to RM error: ", e);
+      e.printStackTrace();
+    } finally {
+      service.shutdown();
+    }
+    refDiffHunks.removeIf(diffHunk -> indexToGroupMap.containsKey(diffHunk.getUniqueIndex()));
+    if (!refDiffHunks.isEmpty()) {
+      createEdges(refDiffHunks, DiffEdgeType.REFACTOR, 1.0);
+      createGroup(result, hunks2Nodes(refDiffHunks), new HashSet<>(), GroupLabel.REFACTOR);
+      for(DiffHunk diffHunk : refDiffHunks){
+        if(hardLinks.containsKey(diffHunk.getUniqueIndex())){
+          for (String target : hardLinks.get(diffHunk.getUniqueIndex())) {
+            if (!target.equals(diffHunk.getUniqueIndex())) {
+              createEdge(diffHunk.getUniqueIndex(), target, DiffEdgeType.DEPEND, 1.0);
+              addToGroup(findNodeByIndex(target), result.get(indexToGroupMap.get(diffHunk.getUniqueIndex())));
+            }
+          }
+        }
+      }
+    }
+
+    // new feature
+    Set<DiffHunk> newFeatureDiffHunks = new TreeSet<>(diffHunkComparator());
+    for (int i = 0; i < diffHunks.size(); ++i) {
+      DiffHunk diffHunk = diffHunks.get(i);
+      // new feature
+      if (diffHunk.getFileType().equals(FileType.JAVA)) {
+        diffHunk.setAstActions(analyzeASTActions(diffHunk));
+        if (detectNewFeature(diffHunk)) {
+          newFeatureDiffHunks.add(diffHunk);
+          continue;
+        }
+      }
+    }
+    newFeatureDiffHunks.removeIf(diffHunk -> indexToGroupMap.containsKey(diffHunk.getUniqueIndex()));
+    if (!newFeatureDiffHunks.isEmpty()) {
+      createEdges(newFeatureDiffHunks, DiffEdgeType.NEWFEATURE, 1.0);
+      createGroup(result, hunks2Nodes(newFeatureDiffHunks), new HashSet<>(), GroupLabel.FEATURE);
+      for (DiffHunk diffHunk : newFeatureDiffHunks) {
+        if (hardLinks.containsKey(diffHunk.getUniqueIndex())) {
+          for (String target : hardLinks.get(diffHunk.getUniqueIndex())) {
+            if (!target.equals(diffHunk.getUniqueIndex())) {
+              createEdge(diffHunk.getUniqueIndex(), target, DiffEdgeType.DEPEND, 1.0);
+              addToGroup(findNodeByIndex(target), result.get(indexToGroupMap.get(diffHunk.getUniqueIndex())));
+            }
+          }
+        }
+      }
+    }
+
+     // others
+    Set<DiffHunk> others = new TreeSet<>(diffHunkComparator());
+    for (DiffHunk diffHunk : diffHunks) {
+      if (!indexToGroupMap.containsKey(diffHunk.getUniqueIndex())) {
+        others.add(diffHunk);
+      }
+    }
+    if (!others.isEmpty()) {
+      createEdges(others, DiffEdgeType.OTHERS, 1.0);
+      createGroup(result, hunks2Nodes(others), new HashSet<>(), GroupLabel.OTHER);
+      for (DiffHunk diffHunk : others) {
+        if (hardLinks.containsKey(diffHunk.getUniqueIndex())) {
+          for (String target : hardLinks.get(diffHunk.getUniqueIndex())) {
+            if (!target.equals(diffHunk.getUniqueIndex())) {
+              createEdge(diffHunk.getUniqueIndex(), target, DiffEdgeType.DEPEND, 1.0);
+              addToGroup(findNodeByIndex(target), result.get(indexToGroupMap.get(diffHunk.getUniqueIndex())));
+            }
+          }
+        }
+      }
+    }
+
+    Utils.writeStringToFile(DiffGraphExporter.exportAsDotWithType(diffGraph), path);
+    return result;
   }
 
   private Map<String, Set<String>> analyzeDefUse(Graph<Node, Edge> graph) {
@@ -956,6 +1091,16 @@ public class GroupGenerator {
     return nodeOpt.orElse(null);
   }
 
+  private Set<DiffNode> hunks2Nodes(Set<DiffHunk>... diffHunksSets){
+    Set<DiffNode> nodes = new HashSet<>();
+    for (Set<DiffHunk> diffHunks : diffHunksSets) {
+      for (DiffHunk hunk : diffHunks) {
+        nodes.add(findNodeByIndex(hunk.getUniqueIndex()));
+      }
+    }
+    return nodes;
+  }
+
   private Set<DiffHunk> detectRefactorings(Set<DiffHunk> refDiffHunks) {
     //    Set<DiffHunk> refDiffHunks = new TreeSet<>(ascendingByIndexComparator());
 
@@ -997,57 +1142,33 @@ public class GroupGenerator {
     return refDiffHunks;
   }
 
-//  private Map<Integer, Set<DiffHunk>>  detectRefactorings(Map<Integer, Set<DiffHunk>>  refDiffHunks) {
-//    //    Set<DiffHunk> refDiffHunks = new TreeSet<>(ascendingByIndexComparator());
-//    Set<DiffHunk> diffHunkSet = new TreeSet<>(diffHunkComparator()); // 使用比较器初始化 TreeSet
-//
-//    try {
-//      File rootFolder1 = new File(srcDirs.getLeft());
-//      File rootFolder2 = new File(srcDirs.getRight());
-//
-//      UMLModel model1 = new UMLModelASTReader(rootFolder1).getUmlModel();
-//      UMLModel model2 = new UMLModelASTReader(rootFolder2).getUmlModel();
-//      UMLModelDiff modelDiff = model1.diff(model2);
-//
-//      List<Refactoring> refactorings = modelDiff.getRefactorings();
-//
-//      // for each refactoring, find the corresponding diff hunk
-//      for (Refactoring refactoring : refactorings) {
-//        // greedy style: put all refactorings into one group
-//        for (CodeRange range : refactoring.leftSide()) {
-//          Optional<DiffHunk> diffHunkOpt = getOverlappingDiffHunk(Version.BASE, range);
-//          if (diffHunkOpt.isPresent()) {
-//            DiffHunk diffHunk = diffHunkOpt.get();
-//            diffHunk.addRefAction(Utils.convertRefactoringToAction(refactoring));
-//            diffHunkSet.add(diffHunk);
-//          }
-//        }
-//        for (CodeRange range : refactoring.rightSide()) {
-//          Optional<DiffHunk> diffHunkOpt = getOverlappingDiffHunk(Version.CURRENT, range);
-//          if (diffHunkOpt.isPresent()) {
-//            DiffHunk diffHunk = diffHunkOpt.get();
-//            diffHunk.addRefAction(Utils.convertRefactoringToAction(refactoring));
-//            diffHunkSet.add(diffHunk);
-//          }
-//        }
-//      }
-//      // 将相似度接近的 diffHunk 放到同一个 set 中
-//        for (DiffHunk diffHunk : diffHunkSet) {
-//          for(DiffHunk diffHunk1 : diffHunkSet){
-//            if(diffHunk != diffHunk1){
-//              double similarity = detectCrossVersionSimilarity(diffHunk, diffHunk1);
-//              if(similarity > 0.8){
-//                diffHunk.addSimilarDiffHunk(diffHunk1);
-//              }
-//            }
-//          }
-//        }
-//
-//    } catch (RefactoringMinerTimedOutException | IOException e) {
-//      e.printStackTrace();
-//    }
-//    return refDiffHunks;
-//  }
+  private boolean detectNewFeature(DiffHunk diffHunk) {
+    if(diffHunk.getFileType().equals(FileType.JAVA) && diffHunk.getChangeType().equals(ChangeType.ADDED)) {
+      List<ASTNode> nodes = diffHunk.getCurrentHunk().getCoveredNodes();
+      for (ASTNode node: nodes ){
+        if (node instanceof TypeDeclaration) {
+          TypeDeclaration typeDeclaration = (TypeDeclaration) node;
+          if(Modifier.isPublic(typeDeclaration.getModifiers())){
+            return true;
+          }
+        }
+        if (node instanceof MethodDeclaration) {
+          MethodDeclaration methodDeclaration = (MethodDeclaration) node;
+          if(Modifier.isPublic(methodDeclaration.getModifiers())){
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  private boolean detectTest(DiffHunk diffHunk) {
+    if((diffHunk.getBaseHunk().getRelativeFilePath().contains("test") || diffHunk.getCurrentHunk().getRelativeFilePath().contains("test"))) {
+      return true;
+    }
+    return false;
+  }
 
   /**
    * Construct a comparator which rank the diffhunks firstly by fileIndex, secondly by diffHunkIndex
@@ -1340,9 +1461,21 @@ public class GroupGenerator {
 //    return baseString.equalsIgnoreCase((currentString));
 //  }
   public boolean detectReformatting(DiffHunk diffHunk) {
+    ContentType baseContentType = diffHunk.getBaseHunk().getContentType();
+    ContentType currentContentType = diffHunk.getCurrentHunk().getContentType();
+    if((isSpecialContentType(baseContentType) && isSpecialContentType(currentContentType))){
+      return true;
+    }
     String baseString = removeComments(Utils.convertListLinesToString(diffHunk.getBaseHunk().getCodeSnippet()));
     String currentString = removeComments(Utils.convertListLinesToString(diffHunk.getCurrentHunk().getCodeSnippet()));
     return baseString.equalsIgnoreCase((currentString));
+  }
+
+  // Function to check if the content type belongs to a specific set of types
+  private boolean isSpecialContentType(ContentType contentType) {
+    return contentType.equals(ContentType.COMMENT) ||
+            contentType.equals(ContentType.BLANKLINE) ||
+            contentType.equals(ContentType.EMPTY);
   }
 
   public static boolean detectReformatting(String baseString, String currentString) {

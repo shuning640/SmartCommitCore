@@ -2,7 +2,7 @@ package com.github.smartcommit.model.diffgraph;
 
 public enum DiffEdgeType {
   /** hard * */
-  DEPEND(true, "dependency", 0),
+  DEPEND(false, "dependency", 0),
   /** hard * */
 
   /** soft * */
@@ -23,8 +23,9 @@ public enum DiffEdgeType {
   DOC(false, "doc", 4),
   CONFIG(false, "config", 4),
   RESOURCE(false, "resource", 4),
-  NONJAVA(false, "non-java", 4),
-  OTHERS(false, "others", 4);
+  NONJAVA(true, "non-java", 4),
+  OTHERS(true, "others", 4),
+  NEWFEATURE(true, "new-feature", 4);
 
   Boolean fixed;
   String label;

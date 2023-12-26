@@ -279,8 +279,11 @@ public class SmartCommit {
     generator.setMaxDistance(maxDistance);
     generator.enableRefDetection(detectRefactorings);
     generator.enableNonJavaChanges(processNonJavaChanges);
-    Utils.writeStringToFile(generator.buildDiffGraph(), tempDir + File.separator + "diffGraph.dot");
-    return generator.generateGroups(weightThreshold);
+
+//    Utils.writeStringToFile(generator.build3Graph(), tempDir + File.separator + "diffGraph.dot");
+//    Utils.writeStringToFile(generator.buildDiffGraph(), tempDir + File.separator + "diffGraph.dot");
+//    return generator.generateGroups(weightThreshold);
+    return generator.build3Graph(tempDir + File.separator + "diffGraph.dot");
   }
 
   /**
