@@ -26,11 +26,11 @@ public class Revert {
     static SourceCodeManager sourceCodeManager = new SourceCodeManager();
 
     public static void main(String [] args) throws Exception {
-        String sql = "select * from regressions_all where is_clean=1 and is_dirty=0 and id not in (select regression_id from group_revert_result);\n";
-//        String sql = "select * from regressions_all where id = 6";
+//        String sql = "select * from regressions_all where is_clean=1 and is_dirty=0 and id not in (select regression_id from group_revert_result);\n";
+        String sql = "select * from regressions_all where id = 10";
         List<Regression> regressionList = MysqlManager.selectCleanRegressions(sql);
         PrintStream o = new PrintStream(new File("log.txt"));
-        System.setOut(o);
+//        System.setOut(o);
         for (int i = 0; i < regressionList.size(); i++) {
             try{
                 Regression regression = regressionList.get(i);
@@ -90,7 +90,7 @@ public class Revert {
                             "chmod u+x build.sh; chmod u+x test.sh; ./build.sh; ./test.sh;" :
                             "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64; chmod u+x build.sh; chmod u+x test.sh; ./build.sh; ./test.sh; ";
                     String result = executor.exec(execStatement).trim();
-                    System.out.println(entry.getKey() + ": Hunk size " + hunks.size() + "; Revert result " + result);
+                    System.out.println(entry.getKey() + ": Hunk size " + hunks.size() + "; Revert result " + result + "; Group label " + entry.getValue().getIntentLabel());
                     hunkNums.add(hunks.size());
                     if(result.contains("PASS")){
                         passGroups.put(entry.getKey(),hunks.size());

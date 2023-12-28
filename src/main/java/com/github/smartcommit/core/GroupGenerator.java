@@ -343,7 +343,7 @@ public class GroupGenerator {
     createEdges(testDiffHunks, DiffEdgeType.TEST, 1.0);
     createGroup(result, hunks2Nodes(testDiffHunks), new HashSet<>(), GroupLabel.TEST);
 
-    // reformat
+    // reformat&comment
     Set<DiffHunk> reformatDiffHunks = new TreeSet<>(diffHunkComparator());
     for (int i = 0; i < diffHunks.size(); ++i) {
       DiffHunk diffHunk = diffHunks.get(i);
