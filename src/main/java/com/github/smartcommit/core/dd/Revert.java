@@ -27,7 +27,7 @@ public class Revert {
 
     public static void main(String [] args) throws Exception {
         String sql = "select * from regressions_all where is_clean=1 and is_dirty=0 and id not in (select regression_id from group_revert_result);\n";
-//        String sql = "select * from regressions_all where id = 28";
+//        String sql = "select * from regressions_all where id = 6";
         List<Regression> regressionList = MysqlManager.selectCleanRegressions(sql);
         PrintStream o = new PrintStream(new File("log.txt"));
         System.setOut(o);
@@ -86,8 +86,10 @@ public class Revert {
                     revert(path,hunks);
                     Executor executor = new Executor();
                     executor.setDirectory(new File(path));
-                    String result = executor.exec("export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64; " +
-                            "chmod u+x build.sh; chmod u+x test.sh; ./build.sh; ./test.sh; ").trim();
+                    String execStatement = System.getProperty("user.home").contains("lsn") ?
+                            "chmod u+x build.sh; chmod u+x test.sh; ./build.sh; ./test.sh;" :
+                            "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64; chmod u+x build.sh; chmod u+x test.sh; ./build.sh; ./test.sh; ";
+                    String result = executor.exec(execStatement).trim();
                     System.out.println(entry.getKey() + ": Hunk size " + hunks.size() + "; Revert result " + result);
                     hunkNums.add(hunks.size());
                     if(result.contains("PASS")){
@@ -104,7 +106,7 @@ public class Revert {
                 }
 
                 System.out.println(regressionId +  ": GroupSize" + groups.size() + " HunkSum" + hunkSum + " PassGroupNum" + passGroups.size() + " MinHunkNum" + minValue);
-//                MysqlManager.insertGroupRevertResult(regressionId, groups.size(), hunkSum, passGroups.size(), minValue, ceGroups.size());
+                MysqlManager.insertGroupRevertResult(regressionId, groups.size(), hunkSum, passGroups.size(), minValue, ceGroups.size());
 
                 FileUtils.deleteDirectory(rfcDir);
                 FileUtils.deleteDirectory(ricDir);
@@ -113,6 +115,7 @@ public class Revert {
             }
             catch (Exception e){
                 e.printStackTrace();
+                System.out.println("regression: " + regressionList.get(i).getId() + " failed");
             }
         }
     }

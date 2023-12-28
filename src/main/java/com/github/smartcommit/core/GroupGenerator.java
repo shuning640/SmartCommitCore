@@ -21,10 +21,7 @@ import gr.uom.java.xmi.diff.CodeRange;
 import gr.uom.java.xmi.diff.UMLModelDiff;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.log4j.Logger;
-import org.eclipse.jdt.core.dom.ASTNode;
-import org.eclipse.jdt.core.dom.MethodDeclaration;
-import org.eclipse.jdt.core.dom.Modifier;
-import org.eclipse.jdt.core.dom.TypeDeclaration;
+import org.eclipse.jdt.core.dom.*;
 import org.jgrapht.Graph;
 import org.jgrapht.Graphs;
 import org.jgrapht.alg.connectivity.ConnectivityInspector;
@@ -39,6 +36,7 @@ import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 import static com.github.smartcommit.io.DataCollector.analyzeASTActions;
+import static org.eclipse.jdt.core.dom.ASTNode.*;
 
 public class GroupGenerator {
   private static final Logger logger = Logger.getLogger(GroupGenerator.class);
@@ -337,6 +335,7 @@ public class GroupGenerator {
     //test
     Set<DiffHunk> testDiffHunks =new TreeSet<>(diffHunkComparator());
     for (DiffHunk diffHunk : diffHunks) {
+      diffHunk.setAstActions(analyzeASTActions(diffHunk));
       if(!indexToGroupMap.containsKey(diffHunk.getUniqueIndex()) && detectTest(diffHunk)){
         testDiffHunks.add(diffHunk);
       }
@@ -376,17 +375,17 @@ public class GroupGenerator {
     } finally {
       service.shutdown();
     }
+    //去除group间重复的diffHunk
     refDiffHunks.removeIf(diffHunk -> indexToGroupMap.containsKey(diffHunk.getUniqueIndex()));
     if (!refDiffHunks.isEmpty()) {
       createEdges(refDiffHunks, DiffEdgeType.REFACTOR, 1.0);
       createGroup(result, hunks2Nodes(refDiffHunks), new HashSet<>(), GroupLabel.REFACTOR);
       for(DiffHunk diffHunk : refDiffHunks){
-        if(hardLinks.containsKey(diffHunk.getUniqueIndex())){
-          for (String target : hardLinks.get(diffHunk.getUniqueIndex())) {
-            if (!target.equals(diffHunk.getUniqueIndex())) {
-              createEdge(diffHunk.getUniqueIndex(), target, DiffEdgeType.DEPEND, 1.0);
-              addToGroup(findNodeByIndex(target), result.get(indexToGroupMap.get(diffHunk.getUniqueIndex())));
-            }
+        Set<String> relatedDiffHunk = detectRelatedDiffHunks(diffHunk, hardLinks);
+        for (String target : relatedDiffHunk) {
+          if (!target.equals(diffHunk.getUniqueIndex())) {
+            createEdge(diffHunk.getUniqueIndex(), target, DiffEdgeType.DEPEND, 1.0);
+            addToGroup(findNodeByIndex(target), result.get(indexToGroupMap.get(diffHunk.getUniqueIndex())));
           }
         }
       }
@@ -398,7 +397,6 @@ public class GroupGenerator {
       DiffHunk diffHunk = diffHunks.get(i);
       // new feature
       if (diffHunk.getFileType().equals(FileType.JAVA)) {
-        diffHunk.setAstActions(analyzeASTActions(diffHunk));
         if (detectNewFeature(diffHunk)) {
           newFeatureDiffHunks.add(diffHunk);
           continue;
@@ -410,12 +408,11 @@ public class GroupGenerator {
       createEdges(newFeatureDiffHunks, DiffEdgeType.NEWFEATURE, 1.0);
       createGroup(result, hunks2Nodes(newFeatureDiffHunks), new HashSet<>(), GroupLabel.FEATURE);
       for (DiffHunk diffHunk : newFeatureDiffHunks) {
-        if (hardLinks.containsKey(diffHunk.getUniqueIndex())) {
-          for (String target : hardLinks.get(diffHunk.getUniqueIndex())) {
-            if (!target.equals(diffHunk.getUniqueIndex())) {
-              createEdge(diffHunk.getUniqueIndex(), target, DiffEdgeType.DEPEND, 1.0);
-              addToGroup(findNodeByIndex(target), result.get(indexToGroupMap.get(diffHunk.getUniqueIndex())));
-            }
+        Set<String> relatedDiffHunk = detectRelatedDiffHunks(diffHunk, hardLinks);
+        for (String target : relatedDiffHunk) {
+          if (!target.equals(diffHunk.getUniqueIndex())) {
+            createEdge(diffHunk.getUniqueIndex(), target, DiffEdgeType.DEPEND, 1.0);
+            addToGroup(findNodeByIndex(target), result.get(indexToGroupMap.get(diffHunk.getUniqueIndex())));
           }
         }
       }
@@ -1142,8 +1139,53 @@ public class GroupGenerator {
     return refDiffHunks;
   }
 
+  //新增hunk：RelatedDiffHunks是调用该hunk的hunks；删除hunk：RelatedDiffHunks是该hunk调用的hunks
+  private Set<String> detectRelatedDiffHunks(DiffHunk diffHunk, Map<String,Set<String>> hardLinks) {
+    List<ASTNode> nodes = diffHunk.getCurrentHunk().getCoveredNodes();
+    Set<String> relatedDiffHunks = new HashSet<>();
+    if(diffHunk.getChangeType().equals(ChangeType.ADDED)||
+            (diffHunk.getChangeType().equals(ChangeType.MODIFIED) && isSpecialContentType(diffHunk.getBaseHunk().getContentType()))){
+      for (ASTNode node: nodes ) {
+        if(node == null){
+          continue;
+        }
+        if (node.getNodeType() == TYPE_DECLARATION || node.getNodeType() == METHOD_DECLARATION || node.getNodeType() == FIELD_DECLARATION||
+                node.getNodeType() == IMPORT_DECLARATION || node.getNodeType() == VARIABLE_DECLARATION_STATEMENT) {
+          for (Map.Entry<String, Set<String>> entry : hardLinks.entrySet()) {
+            String key = entry.getKey();
+            Set<String> values = entry.getValue();
+            if (values.contains(diffHunk.getUniqueIndex())) {
+              relatedDiffHunks.add(key);
+            }
+          }
+          return relatedDiffHunks;
+        }
+      }
+    }else if(diffHunk.getChangeType().equals(ChangeType.DELETED) ||
+            (diffHunk.getChangeType().equals(ChangeType.MODIFIED) && isSpecialContentType(diffHunk.getCurrentHunk().getContentType()))){
+      for (ASTNode node: nodes ) {
+        if(node == null){
+          continue;
+        }
+        if (node.getNodeType() == TYPE_DECLARATION || node.getNodeType() == METHOD_DECLARATION || node.getNodeType() == FIELD_DECLARATION||
+                node.getNodeType() == IMPORT_DECLARATION || node.getNodeType() == VARIABLE_DECLARATION_STATEMENT) {
+          if(hardLinks.containsKey(diffHunk.getUniqueIndex())){
+            for (String target : hardLinks.get(diffHunk.getUniqueIndex())) {
+              if (!target.equals(diffHunk.getUniqueIndex())) {
+                relatedDiffHunks.add(target);
+              }
+            }
+          }
+          return relatedDiffHunks;
+        }
+      }
+    }
+    return relatedDiffHunks;
+  }
+
   private boolean detectNewFeature(DiffHunk diffHunk) {
-    if(diffHunk.getFileType().equals(FileType.JAVA) && diffHunk.getChangeType().equals(ChangeType.ADDED)) {
+    if(diffHunk.getChangeType().equals(ChangeType.ADDED) ||
+            (diffHunk.getChangeType().equals(ChangeType.MODIFIED) && isSpecialContentType(diffHunk.getBaseHunk().getContentType()))) {
       List<ASTNode> nodes = diffHunk.getCurrentHunk().getCoveredNodes();
       for (ASTNode node: nodes ){
         if (node instanceof TypeDeclaration) {
@@ -1157,6 +1199,21 @@ public class GroupGenerator {
           if(Modifier.isPublic(methodDeclaration.getModifiers())){
             return true;
           }
+        }
+        if (node instanceof FieldDeclaration) {
+          FieldDeclaration fieldDeclaration = (FieldDeclaration) node;
+          if(Modifier.isPublic(fieldDeclaration.getModifiers())){
+            return true;
+          }
+        }
+        if (node instanceof VariableDeclarationStatement) {
+          VariableDeclarationStatement fieldDeclaration = (VariableDeclarationStatement) node;
+          if(Modifier.isPublic(fieldDeclaration.getModifiers())){
+            return true;
+          }
+        }
+        if (node instanceof ImportDeclaration) {
+          return true;
         }
       }
     }
