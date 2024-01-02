@@ -13,7 +13,7 @@ public class Main {
     org.apache.log4j.Logger.getRootLogger().setLevel(Level.INFO);
 //    769e3550835560ec9351478803250f32d4061e6f
     //c86ed20
-    String COMMIT_ID = "769e3550835560ec9351478803250f32d4061e6f";
+    String COMMIT_ID = "4731bf45805725bb1d3eac58f9fad8a4b8701f3f";
     try {
       SmartCommit smartCommit =
           new SmartCommit(Config.REPO_ID, Config.REPO_NAME, Config.REPO_PATH + Config.REPO_NAME, Config.TEMP_DIR + Config.REPO_NAME);

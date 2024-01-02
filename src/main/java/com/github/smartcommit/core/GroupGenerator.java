@@ -208,8 +208,7 @@ public class GroupGenerator {
           boolean foundGroup = false;
           for (Map.Entry<Integer, Set<DiffHunk>> entry : map.entrySet()) {
             for (DiffHunk diffHunk1 : entry.getValue()) {
-              if (detectRefAction(diffHunk, diffHunk1).size() > 0 ||
-                      detectCrossVersionSimilarity(diffHunk, diffHunk1) > minSimilarity ) {
+              if (detectRefAction(diffHunk, diffHunk1).size() > 0) {
                 entry.getValue().add(diffHunk);
                 foundGroup = true;
                 break;
@@ -243,6 +242,7 @@ public class GroupGenerator {
           continue;
         }
       }
+
       // create edge according to hard links (that depends on the current)
       // in topo order
       if (diffHunk.getFileType().equals(FileType.JAVA)) {
@@ -269,15 +269,15 @@ public class GroupGenerator {
                 similarity);
           }
           // distance (1/n)
-          //todo 删除对于距离的分组
-//          int distance = detectProxmity(diffHunk, diffHunk1);
-//          if (distance > 0 && distance <= maxDistance) {
-//            createEdge(
-//                diffHunk.getUniqueIndex(),
-//                diffHunk1.getUniqueIndex(),
-//                DiffEdgeType.CLOSE,
-//                Utils.formatDouble((double) 1 / distance));
-//          }
+          int distance = detectProxmity(diffHunk, diffHunk1);
+          if (distance > 0 && distance <= maxDistance) {
+            createEdge(
+                diffHunk.getUniqueIndex(),
+                diffHunk1.getUniqueIndex(),
+                DiffEdgeType.CLOSE,
+                Utils.formatDouble((double) 1 / distance));
+          }
+          // similar
           if (diffHunk.getFileIndex().equals(diffHunk1.getFileIndex())) {
             // cross-version but similar (moving or refactoring)
             // condition: same parent scope (file level for now), delete and add

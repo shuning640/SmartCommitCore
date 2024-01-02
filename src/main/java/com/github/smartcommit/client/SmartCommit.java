@@ -46,7 +46,7 @@ public class SmartCommit {
   private boolean processNonJavaChanges = false;
   private double weightThreshold = 0.8D;
   private double minSimilarity = 0.8D;
-  private int maxDistance = 2;
+  private int maxDistance = 1;
 
   /**
    * Initial setup for analysis
@@ -549,8 +549,8 @@ public class SmartCommit {
   }
 
   public static void main(String [] args) throws Exception {
-//        String sql = "select * from regressions_all where is_clean=1 and is_dirty=0 and id not in (select regression_id from group_revert_result);\n";
-    String sql = "select * from regressions_all where id = 191";
+//    String sql = "select * from regressions_all where is_clean=1 and is_dirty=0 and id not in (select regression_id from group_revert_result);\n";
+    String sql = "select * from regressions_all where id = 22";
     List<Regression> regressionList = MysqlManager.selectCleanRegressions(sql);
     for (int i = 0; i < regressionList.size(); i++) {
       try{

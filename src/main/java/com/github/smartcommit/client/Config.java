@@ -5,7 +5,7 @@ import java.io.File;
 /** Store the constants as the config */
 public final class Config {
   // at commit
-  public static final String REPO_NAME = "RegMiner";
+  public static final String REPO_NAME = "cflint_CFLint";
 //  public static final String REPO_PATH = System.getProperty("user.home") + File.separator + "meta_projects" + File.separator;//99服务器
 //  public static final String REPO_PATH = System.getProperty("user.home") + File.separator + "dd" + File.separator + "ddj_space" + File.separator + "meta_projects" + File.separator;//95服务器
   public static final String REPO_PATH = System.getProperty("user.home").contains("lsn") ?
