@@ -259,7 +259,7 @@ public class GroupGenerator {
       for (int j = i + 1; j < diffHunks.size(); j++) {
         DiffHunk diffHunk1 = diffHunks.get(j);
         if (!diffHunk1.getUniqueIndex().equals(diffHunk.getUniqueIndex())) {
-          // similarity (textual+action)
+          // similarity (textual)
           double similarity = detectSimilarity(diffHunk, diffHunk1);
           if (similarity >= minSimilarity) {
             createEdge(
@@ -277,7 +277,6 @@ public class GroupGenerator {
                 DiffEdgeType.CLOSE,
                 Utils.formatDouble((double) 1 / distance));
           }
-          // similar
           if (diffHunk.getFileIndex().equals(diffHunk1.getFileIndex())) {
             // cross-version but similar (moving or refactoring)
             // condition: same parent scope (file level for now), delete and add
@@ -1079,19 +1078,31 @@ public class GroupGenerator {
         // TODO use tokens to compute instead of whole string
         // textual similarity
         CodeSimilarity cosineSimilarity = new CodeSimilarity(new CosineSimilarity());
+        CodeSimilarity codeSimilarity = new CodeSimilarity();
         double baseText = cosineSimilarity.get(
+                Utils.convertListLinesToString(diffHunk.getBaseHunk().getCodeSnippet()),
+                Utils.convertListLinesToString(diffHunk1.getBaseHunk().getCodeSnippet()));
+        double baseText2 = codeSimilarity.get(
                 Utils.convertListLinesToString(diffHunk.getBaseHunk().getCodeSnippet()),
                 Utils.convertListLinesToString(diffHunk1.getBaseHunk().getCodeSnippet()));
         double currentText = cosineSimilarity.get(
                 Utils.convertListLinesToString(diffHunk.getCurrentHunk().getCodeSnippet()),
                 Utils.convertListLinesToString(diffHunk1.getCurrentHunk().getCodeSnippet()));
+        double currentText2 = codeSimilarity.get(
+                Utils.convertListLinesToString(diffHunk.getCurrentHunk().getCodeSnippet()),
+                Utils.convertListLinesToString(diffHunk1.getCurrentHunk().getCodeSnippet()));
         // change action similarity
-        double astSimi =
-            Utils.computeListSimilarity(diffHunk.getAstActions(), diffHunk1.getAstActions());
-        double refSimi =
-            Utils.computeListSimilarity(diffHunk.getRefActions(), diffHunk1.getRefActions());
+//        double astSimi =
+//            Utils.computeListSimilarity(diffHunk.getAstActions(), diffHunk1.getAstActions());
+//        double refSimi =
+//            Utils.computeListSimilarity(diffHunk.getRefActions(), diffHunk1.getRefActions());
 //        return Utils.formatDouble((baseText + currentText) / 2);
-        return Utils.formatDouble((baseText + currentText + astSimi + refSimi) / 4);
+        if(diffHunk.getChangeType().equals(ChangeType.ADDED) || diffHunk1.getChangeType().equals(ChangeType.ADDED))
+          return Utils.formatDouble((currentText + currentText2) / 2);
+        else if(diffHunk.getChangeType().equals(ChangeType.DELETED) || diffHunk1.getChangeType().equals(ChangeType.DELETED))
+          return Utils.formatDouble((baseText + baseText2) / 2);
+        else
+          return Utils.formatDouble((baseText + currentText + baseText2 + currentText2 ) / 4);
       }
     }
     return 0D;

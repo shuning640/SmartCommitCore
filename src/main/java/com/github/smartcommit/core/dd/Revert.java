@@ -27,7 +27,7 @@ public class Revert {
 
     public static void main(String [] args) throws Exception {
         String sql = "select * from regressions_all where is_clean=1 and is_dirty=0 and id not in (select regression_id from group_revert_result);\n";
-//        String sql = "select * from regressions_all where id = 1";
+//        String sql = "select * from regressions_all where id = 55";
         List<Regression> regressionList = MysqlManager.selectCleanRegressions(sql);
         PrintStream o = new PrintStream(new File("log.txt"));
         System.setOut(o);
@@ -162,7 +162,7 @@ public class Revert {
             switch (type){
                 case DELETE:
                     List<String> newLine = getLinesFromWorkVersion(workPath,hunkEntity);
-                    line.addAll(hunkEntity.getBeginB()-1,newLine);
+                    line.addAll(Math.max(hunkEntity.getBeginB() - 1, 0),newLine);
                     break;
                 case INSERT:
                     line.subList(hunkEntity.getBeginB()-1, hunkEntity.getEndB()).clear();
