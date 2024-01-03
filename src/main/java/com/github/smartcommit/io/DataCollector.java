@@ -166,7 +166,7 @@ public class DataCollector {
     ChangeType changeType = diffHunk.getChangeType();
     ContentType baseContentType = diffHunk.getBaseHunk().getContentType();
     ContentType currentContentType = diffHunk.getCurrentHunk().getContentType();
-    if (changeType.equals(ChangeType.ADDED)) {
+    if (changeType.equals(ChangeType.ADDED) || Utils.isSpecialContentType(baseContentType)) {
       switch (currentContentType) {
         case IMPORT:
         case COMMENT:
@@ -180,7 +180,7 @@ public class DataCollector {
           return actions;
       }
 
-    } else if (changeType.equals(ChangeType.DELETED)) {
+    } else if (changeType.equals(ChangeType.DELETED) || Utils.isSpecialContentType(currentContentType)) {
       switch (baseContentType) {
         case IMPORT:
         case COMMENT:

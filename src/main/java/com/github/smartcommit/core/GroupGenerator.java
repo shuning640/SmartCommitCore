@@ -33,6 +33,9 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static com.github.smartcommit.io.DataCollector.analyzeASTActions;
 
 public class GroupGenerator {
   private static final Logger logger = Logger.getLogger(GroupGenerator.class);
@@ -133,53 +136,54 @@ public class GroupGenerator {
             .filter(diffFile -> !diffFile.getFileType().equals(FileType.JAVA))
             .collect(Collectors.toList());
     Set<DiffHunk> others = new TreeSet<>(diffHunkComparator());
-
     if (processNonJava) {
       // use tree set to keep unique and ordered
-      Set<DiffHunk> doc = new TreeSet<>(diffHunkComparator());
-      Set<DiffHunk> config = new TreeSet<>(diffHunkComparator());
-      Set<DiffHunk> resource = new TreeSet<>(diffHunkComparator());
+//      Set<DiffHunk> doc = new TreeSet<>(diffHunkComparator());
+//      Set<DiffHunk> config = new TreeSet<>(diffHunkComparator());
+//      Set<DiffHunk> resource = new TreeSet<>(diffHunkComparator());
       for (DiffFile diffFile : nonJavaDiffFiles) {
+        others.addAll(diffFile.getDiffHunks());
         // classify non-java changes into doc/config/resources/others
-        String filePath =
-            diffFile.getBaseRelativePath().isEmpty()
-                ? diffFile.getCurrentRelativePath()
-                : diffFile.getBaseRelativePath();
-        if (Utils.isDocFile(filePath)) {
-          doc.addAll(diffFile.getDiffHunks());
-        } else if (Utils.isConfigFile(filePath)) {
-          config.addAll(diffFile.getDiffHunks());
-        } else if (Utils.isResourceFile(filePath)) {
-          resource.addAll(diffFile.getDiffHunks());
-        } else {
-          others.addAll(diffFile.getDiffHunks());
-        }
+//        String filePath =
+//            diffFile.getBaseRelativePath().isEmpty()
+//                ? diffFile.getCurrentRelativePath()
+//                : diffFile.getBaseRelativePath();
+//        if (Utils.isDocFile(filePath)) {
+//          doc.addAll(diffFile.getDiffHunks());
+//        } else if (Utils.isConfigFile(filePath)) {
+//          config.addAll(diffFile.getDiffHunks());
+//        } else if (Utils.isResourceFile(filePath)) {
+//          resource.addAll(diffFile.getDiffHunks());
+//        } else {
+//          others.addAll(diffFile.getDiffHunks());
+//        }
       }
-      createEdges(doc, DiffEdgeType.DOC, 1.0);
-      createEdges(config, DiffEdgeType.CONFIG, 1.0);
-      createEdges(resource, DiffEdgeType.RESOURCE, 1.0);
+//      createEdges(doc, DiffEdgeType.DOC, 1.0);
+//      createEdges(config, DiffEdgeType.CONFIG, 1.0);
+//      createEdges(resource, DiffEdgeType.RESOURCE, 1.0);
       createEdges(others, DiffEdgeType.OTHERS, 1.0);
     } else {
-      Map<String, Set<DiffHunk>> diffHunksByFileType = new HashMap<>();
-      for (DiffFile diffFile : nonJavaDiffFiles) {
-        String fileType =
-            diffFile.getBaseRelativePath().isEmpty()
-                ? Utils.getFileExtension(diffFile.getBaseRelativePath())
-                : Utils.getFileExtension(diffFile.getCurrentRelativePath());
-        if (!diffHunksByFileType.containsKey(fileType)) {
-          diffHunksByFileType.put(fileType, new HashSet<>());
-        }
-        diffHunksByFileType.get(fileType).addAll(diffFile.getDiffHunks());
+    Map<String, Set<DiffHunk>> diffHunksByFileType = new HashMap<>();
+    for (DiffFile diffFile : nonJavaDiffFiles) {
+      String fileType =
+          diffFile.getBaseRelativePath().isEmpty()
+              ? Utils.getFileExtension(diffFile.getBaseRelativePath())
+              : Utils.getFileExtension(diffFile.getCurrentRelativePath());
+      if (!diffHunksByFileType.containsKey(fileType)) {
+        diffHunksByFileType.put(fileType, new HashSet<>());
       }
-      for (Map.Entry<String, Set<DiffHunk>> entry : diffHunksByFileType.entrySet()) {
-        // group file according to file type
-        createEdges(entry.getValue(), DiffEdgeType.NONJAVA, 1.0);
-      }
+      diffHunksByFileType.get(fileType).addAll(diffFile.getDiffHunks());
+    }
+    for (Map.Entry<String, Set<DiffHunk>> entry : diffHunksByFileType.entrySet()) {
+      // group file according to file type
+      createEdges(entry.getValue(), DiffEdgeType.NONJAVA, 1.0);
+    }
     }
 
+    Map<Integer, Set<DiffHunk>> refactorMap = new HashMap<>();
+    Set<DiffHunk> refDiffHunks = new TreeSet<>(diffHunkComparator());
     // refactor
     if (detectRefs) {
-      Set<DiffHunk> refDiffHunks = new TreeSet<>(diffHunkComparator());
       ExecutorService service = Executors.newSingleThreadExecutor();
       Future<?> f = null;
       try {
@@ -195,62 +199,43 @@ public class GroupGenerator {
       } finally {
         service.shutdown();
       }
-      if (!refDiffHunks.isEmpty()) {
-//        createEdges(refDiffHunks, DiffEdgeType.REFACTOR, 1.0);
-//        for (int i = 0; i < list.size() - 1; i++) {
-//          if (i + 1 < list.size()) {
-//            createEdge(list.get(i).getUniqueIndex(), list.get(i + 1).getUniqueIndex(), type, weight);
-//          }
-//        }
-        Map<Integer, Set<DiffHunk>> map = new HashMap<>();
-        // detect similar diffHunk
-        for (DiffHunk diffHunk : refDiffHunks) {
-          boolean foundGroup = false;
-          for (Map.Entry<Integer, Set<DiffHunk>> entry : map.entrySet()) {
-            for (DiffHunk diffHunk1 : entry.getValue()) {
-              if (detectRefAction(diffHunk, diffHunk1).size() > 0) {
-                entry.getValue().add(diffHunk);
-                foundGroup = true;
-                break;
-              }
-            }
-            if (foundGroup) {
-              break;
-            }
-          }
-          // if no similar diffHunk add new Set<DiffHunk>
-          if (!foundGroup) {
-            Set<DiffHunk> newSet = new TreeSet<>(diffHunkComparator());
-            newSet.add(diffHunk);
-            map.put(map.size() + 1, newSet);
-          }
-        }
-        for (Map.Entry<Integer, Set<DiffHunk>> entry : map.entrySet()) {
-          createEdges(entry.getValue(), DiffEdgeType.REFACTOR, 1.0);
-        }
-      }
     }
 
-    // reformat
+    Set<DiffHunk> testDiffHunks = new TreeSet<>(diffHunkComparator());
     Set<DiffHunk> reformat = new TreeSet<>(diffHunkComparator());
     for (int i = 0; i < diffHunks.size(); ++i) {
       DiffHunk diffHunk = diffHunks.get(i);
-      // changes that does not actually change code and remove
-      if (diffHunk.getFileType().equals(FileType.JAVA)) {
-        if (detectReformatting(diffHunk)) {
-          reformat.add(diffHunk);
-          continue;
-        }
-      }
+      diffHunk.setAstActions(analyzeASTActions(diffHunk));
+      diffHunk.generateDescription();
 
+      if(!diffHunk.getFileType().equals(FileType.JAVA)){
+        continue;
+      }
+      //test
+      if(detectTest(diffHunk)){
+        testDiffHunks.add(diffHunk);
+        continue;
+      }
+      //reformat
+      if (detectReformatting(diffHunk)) {
+        reformat.add(diffHunk);
+        continue;
+      }
+    }
+
+    for (int i = 0; i < diffHunks.size(); ++i) {
+      DiffHunk diffHunk = diffHunks.get(i);
+      if(!diffHunk.getFileType().equals(FileType.JAVA) || testDiffHunks.contains(diffHunk) || reformat.contains(diffHunk)){
+        continue;
+      }
       // create edge according to hard links (that depends on the current)
       // in topo order
-      if (diffHunk.getFileType().equals(FileType.JAVA)) {
-        if (hardLinks.containsKey(diffHunk.getUniqueIndex())) {
-          for (String target : hardLinks.get(diffHunk.getUniqueIndex())) {
-            if (!target.equals(diffHunk.getUniqueIndex())) {
-              createEdge(diffHunk.getUniqueIndex(), target, DiffEdgeType.DEPEND, 1.0);
-            }
+      if (hardLinks.containsKey(diffHunk.getUniqueIndex())) {
+        for (String target : hardLinks.get(diffHunk.getUniqueIndex())) {
+          // target不能是test或者reformat
+          if (!target.equals(diffHunk.getUniqueIndex()) && testDiffHunks.stream().noneMatch(hunk -> target.equals(hunk.getUniqueIndex()))
+                  && reformat.stream().noneMatch(hunk -> target.equals(hunk.getUniqueIndex()))){
+            createEdge(diffHunk.getUniqueIndex(), target, DiffEdgeType.DEPEND, 1.0);
           }
         }
       }
@@ -277,37 +262,75 @@ public class GroupGenerator {
                 DiffEdgeType.CLOSE,
                 Utils.formatDouble((double) 1 / distance));
           }
+          //move：
           if (diffHunk.getFileIndex().equals(diffHunk1.getFileIndex())) {
+            if(detectMove(diffHunk, diffHunk1)){
+                createEdge(
+                        diffHunk.getUniqueIndex(),
+                        diffHunk1.getUniqueIndex(),
+                        DiffEdgeType.MOVING,
+                        1.0);
+                }
             // cross-version but similar (moving or refactoring)
             // condition: same parent scope (file level for now), delete and add
-            if (!diffHunk.getChangeType().equals(ChangeType.MODIFIED)
-                && !diffHunk1.getChangeType().equals(ChangeType.MODIFIED)) {
-              similarity = detectCrossVersionSimilarity(diffHunk, diffHunk1);
-              if (similarity >= minSimilarity) {
-                createEdge(
-                    diffHunk.getUniqueIndex(),
-                    diffHunk1.getUniqueIndex(),
-                    DiffEdgeType.SIMILAR,
-                    similarity);
-              }
-            }
-          } else {
-            // test and tested classes (in case no explicit hard link captured)
-            // condition: file name differs only with ending "Test"
-            if (diffHunk.getFileType().equals(FileType.JAVA)
-                && diffHunk1.getFileType().equals(FileType.JAVA)) {
-              Pair<String, String> pair = detectTesting(diffHunk, diffHunk1);
-              if (pair != null) {
-                createEdge(pair.getLeft(), pair.getRight(), DiffEdgeType.TEST, 1.0);
-              }
-            }
+//            if (!diffHunk.getChangeType().equals(ChangeType.MODIFIED)
+//                && !diffHunk1.getChangeType().equals(ChangeType.MODIFIED)) {
+//              similarity = detectCrossVersionSimilarity(diffHunk, diffHunk1);
+//              if (similarity >= minSimilarity) {
+//                createEdge(
+//                    diffHunk.getUniqueIndex(),
+//                    diffHunk1.getUniqueIndex(),
+//                    DiffEdgeType.SIMILAR,
+//                    similarity);
+//              }
+//            }
           }
+//          else {
+//            // test and tested classes (in case no explicit hard link captured)
+//            // condition: file name differs only with ending "Test"
+//            if (diffHunk.getFileType().equals(FileType.JAVA)
+//                && diffHunk1.getFileType().equals(FileType.JAVA)) {
+//              Pair<String, String> pair = detectTesting(diffHunk, diffHunk1);
+//              if (pair != null) {
+//                createEdge(pair.getLeft(), pair.getRight(), DiffEdgeType.TEST, 1.0);
+//              }
+//            }
+//          }
         }
         // TODO: cross-lang dependency
         // detect references between configs and java
       }
     }
+    createEdges(testDiffHunks, DiffEdgeType.TEST, 1.0);
     createEdges(reformat, DiffEdgeType.REFORMAT, 1.0);
+    Stream.of(testDiffHunks, reformat, others /*, 更多集合*/).flatMap(Set::stream).forEach(refDiffHunks::remove);
+    if (!refDiffHunks.isEmpty()) {
+      // detect same action diffHunk
+      for (DiffHunk diffHunk : refDiffHunks) {
+        boolean foundGroup = false;
+        for (Map.Entry<Integer, Set<DiffHunk>> entry : refactorMap.entrySet()) {
+          for (DiffHunk diffHunk1 : entry.getValue()) {
+            if (detectRefAction(diffHunk, diffHunk1).size() > 0) {
+              entry.getValue().add(diffHunk);
+              foundGroup = true;
+              break;
+            }
+          }
+          if (foundGroup) {
+            break;
+          }
+        }
+        // if no similar diffHunk add new Set<DiffHunk>
+        if (!foundGroup) {
+          Set<DiffHunk> newSet = new TreeSet<>(diffHunkComparator());
+          newSet.add(diffHunk);
+          refactorMap.put(refactorMap.size() + 1, newSet);
+        }
+      }
+      for (Map.Entry<Integer, Set<DiffHunk>> entry : refactorMap.entrySet()) {
+        createEdges(entry.getValue(), DiffEdgeType.REFACTOR, 1.0);
+      }
+    }
     return DiffGraphExporter.exportAsDotWithType(diffGraph);
   }
 
@@ -1072,38 +1095,38 @@ public class GroupGenerator {
     // ignore special cases: imports, empty, blank_lines
     if (diffHunk.getFileType().equals(FileType.JAVA)
         && diffHunk1.getFileType().equals(FileType.JAVA)) {
-      if (diffHunk.getBaseHunk().getContentType().equals(ContentType.CODE)
-          || diffHunk.getCurrentHunk().getContentType().equals(ContentType.CODE)) {
-        // TODO check length to early stop, avoid too low similarity computation
-        // TODO use tokens to compute instead of whole string
-        // textual similarity
-        CodeSimilarity cosineSimilarity = new CodeSimilarity(new CosineSimilarity());
-        CodeSimilarity codeSimilarity = new CodeSimilarity();
-        double baseText = cosineSimilarity.get(
-                Utils.convertListLinesToString(diffHunk.getBaseHunk().getCodeSnippet()),
-                Utils.convertListLinesToString(diffHunk1.getBaseHunk().getCodeSnippet()));
-        double baseText2 = codeSimilarity.get(
-                Utils.convertListLinesToString(diffHunk.getBaseHunk().getCodeSnippet()),
-                Utils.convertListLinesToString(diffHunk1.getBaseHunk().getCodeSnippet()));
-        double currentText = cosineSimilarity.get(
-                Utils.convertListLinesToString(diffHunk.getCurrentHunk().getCodeSnippet()),
-                Utils.convertListLinesToString(diffHunk1.getCurrentHunk().getCodeSnippet()));
-        double currentText2 = codeSimilarity.get(
-                Utils.convertListLinesToString(diffHunk.getCurrentHunk().getCodeSnippet()),
-                Utils.convertListLinesToString(diffHunk1.getCurrentHunk().getCodeSnippet()));
-        // change action similarity
+      if(diffHunk.getDescription().contains("\"") && Objects.equals(diffHunk.getDescription(), diffHunk1.getDescription())){
+        return 1.1D;
+      }
+
+      // textual similarity
+      CodeSimilarity cosineSimilarity = new CodeSimilarity(new CosineSimilarity());
+      CodeSimilarity codeSimilarity = new CodeSimilarity();
+      double baseText = cosineSimilarity.get(
+              Utils.convertListLinesToString(diffHunk.getBaseHunk().getCodeSnippet()),
+              Utils.convertListLinesToString(diffHunk1.getBaseHunk().getCodeSnippet()));
+      double baseText2 = codeSimilarity.get(
+              Utils.convertListLinesToString(diffHunk.getBaseHunk().getCodeSnippet()),
+              Utils.convertListLinesToString(diffHunk1.getBaseHunk().getCodeSnippet()));
+      double currentText = cosineSimilarity.get(
+              Utils.convertListLinesToString(diffHunk.getCurrentHunk().getCodeSnippet()),
+              Utils.convertListLinesToString(diffHunk1.getCurrentHunk().getCodeSnippet()));
+      double currentText2 = codeSimilarity.get(
+              Utils.convertListLinesToString(diffHunk.getCurrentHunk().getCodeSnippet()),
+              Utils.convertListLinesToString(diffHunk1.getCurrentHunk().getCodeSnippet()));
+      // change action similarity
 //        double astSimi =
 //            Utils.computeListSimilarity(diffHunk.getAstActions(), diffHunk1.getAstActions());
 //        double refSimi =
 //            Utils.computeListSimilarity(diffHunk.getRefActions(), diffHunk1.getRefActions());
 //        return Utils.formatDouble((baseText + currentText) / 2);
-        if(diffHunk.getChangeType().equals(ChangeType.ADDED) || diffHunk1.getChangeType().equals(ChangeType.ADDED))
-          return Utils.formatDouble((currentText + currentText2) / 2);
-        else if(diffHunk.getChangeType().equals(ChangeType.DELETED) || diffHunk1.getChangeType().equals(ChangeType.DELETED))
-          return Utils.formatDouble((baseText + baseText2) / 2);
-        else
-          return Utils.formatDouble((baseText + currentText + baseText2 + currentText2 ) / 4);
-      }
+      if(diffHunk.getChangeType().equals(ChangeType.ADDED) || diffHunk1.getChangeType().equals(ChangeType.ADDED))
+        return Utils.formatDouble((currentText + currentText2) / 2);
+      else if(diffHunk.getChangeType().equals(ChangeType.DELETED) || diffHunk1.getChangeType().equals(ChangeType.DELETED))
+        return Utils.formatDouble((baseText + baseText2) / 2);
+      else
+        return Utils.formatDouble((baseText + currentText + baseText2 + currentText2 ) / 4);
+
     }
     return 0D;
   }
@@ -1351,9 +1374,21 @@ public class GroupGenerator {
 //    return baseString.equalsIgnoreCase((currentString));
 //  }
   public boolean detectReformatting(DiffHunk diffHunk) {
+    ContentType baseContentType = diffHunk.getBaseHunk().getContentType();
+    ContentType currentContentType = diffHunk.getCurrentHunk().getContentType();
+    if((isSpecialContentType(baseContentType) && isSpecialContentType(currentContentType))){
+      return true;
+    }
     String baseString = removeComments(Utils.convertListLinesToString(diffHunk.getBaseHunk().getCodeSnippet()));
     String currentString = removeComments(Utils.convertListLinesToString(diffHunk.getCurrentHunk().getCodeSnippet()));
     return baseString.equalsIgnoreCase((currentString));
+  }
+
+  // Function to check if the content type belongs to a specific set of types
+  private boolean isSpecialContentType(ContentType contentType) {
+    return contentType.equals(ContentType.COMMENT) ||
+            contentType.equals(ContentType.BLANKLINE) ||
+            contentType.equals(ContentType.EMPTY);
   }
 
   public static boolean detectReformatting(String baseString, String currentString) {
@@ -1364,6 +1399,37 @@ public class GroupGenerator {
 //    return code.replaceAll("//.*|/\\*(?:.|[\\n\\r])*?\\*/", "")
     return code.replaceAll("//.*|/\\*(.|\\R)*?\\*/", "")
             .replaceAll("\\\\t|[\\\\r?\\\\n]+|\\s+", "");
+  }
+
+  private boolean detectTest(DiffHunk diffHunk) {
+    if((diffHunk.getBaseHunk().getRelativeFilePath().contains("test/") || diffHunk.getCurrentHunk().getRelativeFilePath().contains("test/"))) {
+      return true;
+    }
+    return false;
+  }
+
+  private boolean detectMove(DiffHunk diffHunk, DiffHunk diffHunk1) {
+    List<Action> astAction = diffHunk.getAstActions();
+    List<Action> astAction1 = diffHunk1.getAstActions();
+
+    for (Action action : astAction) {
+      if (action.getOperation() == Operation.ADD) {
+        for (Action action1 : astAction1) {
+          if (action1.getOperation() == Operation.DEL && action.toString().contains("\"") &&
+                  action.toString().replace("Add", "").equals(action1.toString().replace("Delete", ""))) {
+            return true;
+          }
+        }
+      } else if (action.getOperation() == Operation.DEL) {
+        for (Action action1 : astAction1) {
+          if (action1.getOperation() == Operation.ADD && action.toString().contains("\"") &&
+                  action.toString().replace("Delete", "").equals(action1.toString().replace("Add", ""))) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
   }
 
   public void enableRefDetection(boolean enable) {

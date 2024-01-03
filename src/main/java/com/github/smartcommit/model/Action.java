@@ -2,6 +2,8 @@ package com.github.smartcommit.model;
 
 import com.github.smartcommit.model.constant.Operation;
 
+import java.util.Objects;
+
 /** One of the semantic change actions of the diff hunk */
 public class Action {
   private Operation operation;
@@ -68,6 +70,11 @@ public class Action {
         && a.typeTo.equals(this.typeTo)
         && a.labelFrom.equals(this.labelFrom)
         && a.labelTo.equals(this.labelTo);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(operation, typeFrom, labelFrom, typeTo, labelTo);
   }
 
   public int getOperationIndex() {

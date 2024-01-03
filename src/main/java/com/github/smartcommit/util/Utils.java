@@ -899,5 +899,11 @@ public class Utils {
     }
   }
 
+  public static boolean isSpecialContentType(ContentType contentType) {
+    return contentType.equals(ContentType.COMMENT) ||
+            contentType.equals(ContentType.BLANKLINE) ||
+            contentType.equals(ContentType.EMPTY);
+  }
+
 
 }
