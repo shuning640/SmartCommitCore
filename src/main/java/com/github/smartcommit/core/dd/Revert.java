@@ -27,7 +27,7 @@ public class Revert {
 
     public static void main(String [] args) throws Exception {
         String sql = "select * from regressions_all where is_clean=1 and is_dirty=0 and id not in (select regression_id from group_revert_result);\n";
-//        String sql = "select * from regressions_all where id = 1720";
+//        String sql = "select * from regressions_all where id = 71";
         List<Regression> regressionList = MysqlManager.selectCleanRegressions(sql);
         PrintStream o = new PrintStream(new File("log.txt"));
         System.setOut(o);
@@ -76,10 +76,9 @@ public class Revert {
                         projectName, Config.REPO_PATH + File.separator + projectName, Config.TEMP_DIR + projectName);
                 Map<String, Group> groups = smartCommit.analyzeCommit(ric.getCommitID());
                 System.out.println("regression: " + regression.getId() + " group size: " + groups.size());
-                List<Integer> hunkNums = new ArrayList<>();
                 Map<String, Integer> passGroups = new HashMap<>();
                 Map<String, Integer> ceGroups = new HashMap<>();
-                int a = 0;
+                Set<HunkEntity> allHunks = new HashSet<>();
                 for(Map.Entry<String, Group> entry: groups.entrySet()){
                     List<HunkEntity> hunks = smartCommit.group2Hunks(entry.getValue());
                     hunks.removeIf(hunkEntity -> hunkEntity.getNewPath().contains("test") || hunkEntity.getOldPath().contains("test"));
@@ -96,7 +95,7 @@ public class Revert {
                             "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64; chmod u+x build.sh; chmod u+x test.sh; ./build.sh; ./test.sh; ";
                     String result = executor.exec(execStatement).trim();
                     System.out.println(entry.getKey() + ": Hunk size " + hunks.size() + "; Revert result " + result+ "; Group label " + entry.getValue().getIntentLabel());
-                    hunkNums.add(hunks.size());
+                    allHunks.addAll(hunks);
                     if(result.contains("PASS")){
                         passGroups.put(entry.getKey(),hunks.size());
                     }
@@ -104,7 +103,7 @@ public class Revert {
                         ceGroups.put(entry.getKey(),hunks.size());
                     }
                 }
-                int hunkSum = hunkNums.stream().mapToInt(Integer::intValue).sum();
+                int hunkSum = allHunks.size();
                 int minValue = 0;
                 if(!passGroups.isEmpty()){
                     minValue = Collections.min(passGroups.values());

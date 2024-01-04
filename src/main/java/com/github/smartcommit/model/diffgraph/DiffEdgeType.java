@@ -3,6 +3,7 @@ package com.github.smartcommit.model.diffgraph;
 public enum DiffEdgeType {
   /** hard * */
   DEPEND(true, "dependency", 0),
+  WEAKDEPEND(true, "weak-dependency", 0),
   /** hard * */
 
   /** soft * */

@@ -12,7 +12,6 @@ import com.github.smartcommit.model.diffgraph.DiffNode;
 import com.github.smartcommit.model.graph.Edge;
 import com.github.smartcommit.model.graph.Node;
 import com.github.smartcommit.util.Utils;
-import com.github.smartcommit.util.diffparser.api.model.Diff;
 import com.zhixiangli.code.similarity.CodeSimilarity;
 import com.zhixiangli.code.similarity.strategy.CosineSimilarity;
 import gr.uom.java.xmi.UMLModel;
@@ -59,6 +58,10 @@ public class GroupGenerator {
   private boolean detectRefs = false;
   private double minSimilarity = 0.618D;
   private int maxDistance = 0;
+
+  //
+  Set<Integer> weakDependEdges = new HashSet<>();
+  Set<String> generalNodes = new HashSet<>();
 
   public GroupGenerator(
       String repoID,
@@ -130,6 +133,7 @@ public class GroupGenerator {
     // cache all links from base/current graph as a top order
     Map<String, Set<String>> hardLinks =
         Utils.mergeTwoMaps(analyzeDefUse(baseGraph), analyzeDefUse(currentGraph));
+    generalNodes = getGeneralNodes(hardLinks);
 
     List<DiffFile> nonJavaDiffFiles =
         diffFiles.stream()
@@ -137,30 +141,9 @@ public class GroupGenerator {
             .collect(Collectors.toList());
     Set<DiffHunk> others = new TreeSet<>(diffHunkComparator());
     if (processNonJava) {
-      // use tree set to keep unique and ordered
-//      Set<DiffHunk> doc = new TreeSet<>(diffHunkComparator());
-//      Set<DiffHunk> config = new TreeSet<>(diffHunkComparator());
-//      Set<DiffHunk> resource = new TreeSet<>(diffHunkComparator());
       for (DiffFile diffFile : nonJavaDiffFiles) {
         others.addAll(diffFile.getDiffHunks());
-        // classify non-java changes into doc/config/resources/others
-//        String filePath =
-//            diffFile.getBaseRelativePath().isEmpty()
-//                ? diffFile.getCurrentRelativePath()
-//                : diffFile.getBaseRelativePath();
-//        if (Utils.isDocFile(filePath)) {
-//          doc.addAll(diffFile.getDiffHunks());
-//        } else if (Utils.isConfigFile(filePath)) {
-//          config.addAll(diffFile.getDiffHunks());
-//        } else if (Utils.isResourceFile(filePath)) {
-//          resource.addAll(diffFile.getDiffHunks());
-//        } else {
-//          others.addAll(diffFile.getDiffHunks());
-//        }
       }
-//      createEdges(doc, DiffEdgeType.DOC, 1.0);
-//      createEdges(config, DiffEdgeType.CONFIG, 1.0);
-//      createEdges(resource, DiffEdgeType.RESOURCE, 1.0);
       createEdges(others, DiffEdgeType.OTHERS, 1.0);
     } else {
     Map<String, Set<DiffHunk>> diffHunksByFileType = new HashMap<>();
@@ -235,7 +218,12 @@ public class GroupGenerator {
           // target不能是test或者reformat
           if (!target.equals(diffHunk.getUniqueIndex()) && testDiffHunks.stream().noneMatch(hunk -> target.equals(hunk.getUniqueIndex()))
                   && reformat.stream().noneMatch(hunk -> target.equals(hunk.getUniqueIndex()))){
-            createEdge(diffHunk.getUniqueIndex(), target, DiffEdgeType.DEPEND, 1.0);
+            if(generalNodes.contains(target)){
+              createEdge(diffHunk.getUniqueIndex(), target, DiffEdgeType.WEAKDEPEND, 0.1);
+              weakDependEdges.add(diffGraph.edgeSet().size());
+            }else{
+              createEdge(diffHunk.getUniqueIndex(), target, DiffEdgeType.DEPEND, 1.0);
+            }
           }
         }
       }
@@ -270,32 +258,8 @@ public class GroupGenerator {
                         diffHunk1.getUniqueIndex(),
                         DiffEdgeType.MOVING,
                         1.0);
-                }
-            // cross-version but similar (moving or refactoring)
-            // condition: same parent scope (file level for now), delete and add
-//            if (!diffHunk.getChangeType().equals(ChangeType.MODIFIED)
-//                && !diffHunk1.getChangeType().equals(ChangeType.MODIFIED)) {
-//              similarity = detectCrossVersionSimilarity(diffHunk, diffHunk1);
-//              if (similarity >= minSimilarity) {
-//                createEdge(
-//                    diffHunk.getUniqueIndex(),
-//                    diffHunk1.getUniqueIndex(),
-//                    DiffEdgeType.SIMILAR,
-//                    similarity);
-//              }
-//            }
+            }
           }
-//          else {
-//            // test and tested classes (in case no explicit hard link captured)
-//            // condition: file name differs only with ending "Test"
-//            if (diffHunk.getFileType().equals(FileType.JAVA)
-//                && diffHunk1.getFileType().equals(FileType.JAVA)) {
-//              Pair<String, String> pair = detectTesting(diffHunk, diffHunk1);
-//              if (pair != null) {
-//                createEdge(pair.getLeft(), pair.getRight(), DiffEdgeType.TEST, 1.0);
-//              }
-//            }
-//          }
         }
         // TODO: cross-lang dependency
         // detect references between configs and java
@@ -420,7 +384,7 @@ public class GroupGenerator {
 
   /**
    * Generate groups of changes either with a dynamic or fixed threshold
-   *
+   * todo
    * @param threshold
    */
   public Map<String, Group> generateGroups(Double threshold) {
@@ -510,12 +474,12 @@ public class GroupGenerator {
 
     Set<DiffNode> individuals = new TreeSet<>(diffNodeComparator());
     for (DiffHunk diffHunk : diffHunks) {
-      if (!indexToGroupMap.containsKey(diffHunk.getUniqueIndex())) {
+      if (!indexToGroupMap.containsKey(diffHunk.getUniqueIndex()) && !generalNodes.contains(diffHunk.getUniqueIndex())) {
         individuals.add(findNodeByIndex(diffHunk.getUniqueIndex()));
       }
     }
     //    assignIndividuals(result, individuals);
-    //todo 对剩余单个hunk的处理为按文件成组
+    // 对剩余单个hunk的处理为按文件成组
     Map<String, Set<DiffNode>> groupByFile = new HashMap<>();
     for (DiffNode node : individuals) {
       String fileIndex = node.getFileIndex().toString();
@@ -526,11 +490,7 @@ public class GroupGenerator {
       createGroup(result, entry.getValue(), new HashSet<>(), GroupLabel.OTHER);
     }
 
-    // 对剩余的单个hunk的处理现在为单个成组
-//    for (DiffNode node : individuals) {
-////      Set<DiffNode> individual = new HashSet<>(Arrays.asList(node));
-//      createGroup(result, new HashSet<>(Collections.singletonList(node)), new HashSet<>(), GroupLabel.OTHER);
-//    }
+    assignGeneralNodes(result, generalNodes, weakDependEdges);
 
     return result;
   }
@@ -877,6 +837,46 @@ public class GroupGenerator {
         continue;
       }
     }
+  }
+
+  /**
+   * Add general nodes diff hunk to groups
+   *
+   * @param groups
+   * @param generalNodes
+   */
+  private void assignGeneralNodes(Map<String, Group> groups, Set<String> generalNodes, Set<Integer> weakDependEdges){
+    for(String node: generalNodes){
+      for(DiffEdge edge : diffGraph.edgeSet()){
+        if(weakDependEdges.contains(edge.getId())){
+          DiffNode target = diffGraph.getEdgeTarget(edge);
+          if(target.getIndex().equals(node)){
+            DiffNode source = diffGraph.getEdgeSource(edge);
+            Group group = groups.get(this.indexToGroupMap.get(source.getIndex()));
+            group.addByID(target.getUUID());
+            this.indexToGroupMap.put(node, this.indexToGroupMap.getOrDefault(node, "") + ", " + group.getGroupID());
+          }
+        }
+      }
+    }
+  }
+
+  private Set<String> getGeneralNodes(Map<String, Set<String>> hardLinks){
+    Set<String> generalNodes = new HashSet<>();
+    Map<String, Integer> stringCounts = new HashMap<>();
+    // 统计每个字符串出现的次数
+    for (Set<String> valueSet : hardLinks.values()) {
+      for (String value : valueSet) {
+        stringCounts.put(value, stringCounts.getOrDefault(value, 0) + 1);
+      }
+    }
+    // 找到出现次数大于等于三次且不是键的字符串
+    for (Map.Entry<String, Integer> entry : stringCounts.entrySet()) {
+      if (entry.getValue() >= 3 && !hardLinks.containsKey(entry.getKey())) {
+        generalNodes.add(entry.getKey());
+      }
+    }
+    return generalNodes;
   }
 
   /**

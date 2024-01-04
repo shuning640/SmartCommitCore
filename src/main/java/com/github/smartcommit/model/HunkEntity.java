@@ -2,6 +2,8 @@ package com.github.smartcommit.model;
 
 import com.github.smartcommit.model.constant.ChangeType;
 
+import java.util.Objects;
+
 /**
  * @author lsn
  * @date 2023/10/30 8:15 PM
@@ -119,5 +121,25 @@ public class HunkEntity {
                 ", endB=" + endB +
                 ", type=" + type +
                 '}';
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == this) {
+            return true;
+        }
+        HunkEntity a = (HunkEntity) obj;
+        return a.oldPath.equals(this.oldPath)
+                && a.newPath.equals(this.newPath)
+                && a.beginA == this.beginA
+                && a.endA == this.endA
+                && a.beginB == this.beginB
+                && a.endB == this.endB
+                && a.type == this.type;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(oldPath, newPath, beginA, endA, beginB, endB, type);
     }
 }

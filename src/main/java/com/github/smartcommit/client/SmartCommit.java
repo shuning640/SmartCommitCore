@@ -28,7 +28,6 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
-import static com.github.smartcommit.io.DataCollector.analyzeASTActions;
 
 /** API entry */
 public class SmartCommit {
@@ -549,7 +548,7 @@ public class SmartCommit {
 
   public static void main(String [] args) throws Exception {
 //    String sql = "select * from regressions_all where is_clean=1 and is_dirty=0 and id not in (select regression_id from group_revert_result);\n";
-    String sql = "select * from regressions_all where id = 53";
+    String sql = "select * from regressions_all where id = 71";
     List<Regression> regressionList = MysqlManager.selectCleanRegressions(sql);
     for (int i = 0; i < regressionList.size(); i++) {
       try{
