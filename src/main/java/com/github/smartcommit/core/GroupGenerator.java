@@ -130,10 +130,6 @@ public class GroupGenerator {
   /** Build edges in the diff graph */
   //todo 计算edge weight的主要函数
   public String buildDiffGraph() {
-    // cache all links from base/current graph as a top order
-    Map<String, Set<String>> hardLinks =
-        Utils.mergeTwoMaps(analyzeDefUse(baseGraph), analyzeDefUse(currentGraph));
-    generalNodes = getGeneralNodes(hardLinks);
 
     List<DiffFile> nonJavaDiffFiles =
         diffFiles.stream()
@@ -146,21 +142,21 @@ public class GroupGenerator {
       }
       createEdges(others, DiffEdgeType.OTHERS, 1.0);
     } else {
-    Map<String, Set<DiffHunk>> diffHunksByFileType = new HashMap<>();
-    for (DiffFile diffFile : nonJavaDiffFiles) {
-      String fileType =
-          diffFile.getBaseRelativePath().isEmpty()
-              ? Utils.getFileExtension(diffFile.getBaseRelativePath())
-              : Utils.getFileExtension(diffFile.getCurrentRelativePath());
-      if (!diffHunksByFileType.containsKey(fileType)) {
-        diffHunksByFileType.put(fileType, new HashSet<>());
+      Map<String, Set<DiffHunk>> diffHunksByFileType = new HashMap<>();
+      for (DiffFile diffFile : nonJavaDiffFiles) {
+        String fileType =
+            diffFile.getBaseRelativePath().isEmpty()
+                ? Utils.getFileExtension(diffFile.getBaseRelativePath())
+                : Utils.getFileExtension(diffFile.getCurrentRelativePath());
+        if (!diffHunksByFileType.containsKey(fileType)) {
+          diffHunksByFileType.put(fileType, new HashSet<>());
+        }
+        diffHunksByFileType.get(fileType).addAll(diffFile.getDiffHunks());
       }
-      diffHunksByFileType.get(fileType).addAll(diffFile.getDiffHunks());
-    }
-    for (Map.Entry<String, Set<DiffHunk>> entry : diffHunksByFileType.entrySet()) {
-      // group file according to file type
-      createEdges(entry.getValue(), DiffEdgeType.NONJAVA, 1.0);
-    }
+      for (Map.Entry<String, Set<DiffHunk>> entry : diffHunksByFileType.entrySet()) {
+        // group file according to file type
+        createEdges(entry.getValue(), DiffEdgeType.NONJAVA, 1.0);
+      }
     }
 
     Map<Integer, Set<DiffHunk>> refactorMap = new HashMap<>();
@@ -205,6 +201,14 @@ public class GroupGenerator {
         continue;
       }
     }
+
+    // cache all links from base/current graph as a top order
+    Map<String, Set<String>> hardLinks =
+            Utils.mergeTwoMaps(analyzeDefUse(baseGraph), analyzeDefUse(currentGraph));
+    // remove testDiffHunks、 others和 reformat key&value in hardLinks
+    removeEntriesRelatedToDiffHunks(hardLinks, testDiffHunks, reformat, others);
+
+    generalNodes = getGeneralNodes(hardLinks);
 
     for (int i = 0; i < diffHunks.size(); ++i) {
       DiffHunk diffHunk = diffHunks.get(i);
@@ -850,7 +854,8 @@ public class GroupGenerator {
       for(DiffEdge edge : diffGraph.edgeSet()){
         if(weakDependEdges.contains(edge.getId())){
           DiffNode target = diffGraph.getEdgeTarget(edge);
-          if(target.getIndex().equals(node)){
+
+          if(target.getIndex().equals(node) && !isRealAddHunk(getDiffHunkByIndex(target.getIndex()))){
             DiffNode source = diffGraph.getEdgeSource(edge);
             Group group = groups.get(this.indexToGroupMap.get(source.getIndex()));
             group.addByID(target.getUUID());
@@ -861,18 +866,51 @@ public class GroupGenerator {
     }
   }
 
+  private DiffHunk getDiffHunkByIndex(String index) {
+    for (DiffHunk diffHunk : diffHunks) {
+      if (diffHunk.getUniqueIndex().equals(index)) {
+        return diffHunk;
+      }
+    }
+    return null;
+  }
+
+  private static void removeEntriesRelatedToDiffHunks(Map<String, Set<String>> hardLinks, Set<DiffHunk>... diffHunks) {
+    Set<String> keysToRemove = new HashSet<>();
+    for (Set<DiffHunk> diffHunkSet : diffHunks) {
+      for (DiffHunk diffHunk : diffHunkSet) {
+        String uniqueIndex = diffHunk.getUniqueIndex();
+        keysToRemove.add(uniqueIndex);
+        hardLinks.values().removeIf(value -> value.contains(uniqueIndex));
+      }
+    }
+    // 移除涉及的键
+    keysToRemove.forEach(hardLinks::remove);
+  }
+
   private Set<String> getGeneralNodes(Map<String, Set<String>> hardLinks){
     Set<String> generalNodes = new HashSet<>();
-    Map<String, Integer> stringCounts = new HashMap<>();
+    Map<String, Set<String>> stringCounts = new HashMap<>();
     // 统计每个字符串出现的次数
-    for (Set<String> valueSet : hardLinks.values()) {
-      for (String value : valueSet) {
-        stringCounts.put(value, stringCounts.getOrDefault(value, 0) + 1);
+    for(Map.Entry<String, Set<String>> entry: hardLinks.entrySet()){
+      String key = entry.getKey();
+      for(String value: entry.getValue()){
+        if(!value.equals(key)){
+          // 如果在 stringCounts 中存在该 key，则将 entry.getKey() 添加到对应的集合中
+          if (stringCounts.containsKey(value)) {
+            stringCounts.get(value).add(key);
+          } else {
+            // 如果不存在该 key，则创建一个新的 HashSet，并将 entry.getKey() 添加到其中
+            Set<String> set = new HashSet<>();
+            set.add(key);
+            stringCounts.put(value, set);
+          }
+        }
       }
     }
     // 找到出现次数大于等于三次且不是键的字符串
-    for (Map.Entry<String, Integer> entry : stringCounts.entrySet()) {
-      if (entry.getValue() >= 3 && !hardLinks.containsKey(entry.getKey())) {
+    for (Map.Entry<String,  Set<String>> entry : stringCounts.entrySet()) {
+      if (entry.getValue().size() >= 3 && !hardLinks.containsKey(entry.getKey())) {
         generalNodes.add(entry.getKey());
       }
     }
@@ -1389,6 +1427,16 @@ public class GroupGenerator {
     return contentType.equals(ContentType.COMMENT) ||
             contentType.equals(ContentType.BLANKLINE) ||
             contentType.equals(ContentType.EMPTY);
+  }
+
+  private boolean isRealAddHunk(DiffHunk diffHunk){
+    if(diffHunk.getChangeType() == ChangeType.ADDED){
+      return true;
+    }
+    else if(diffHunk.getChangeType() == ChangeType.MODIFIED && isSpecialContentType(diffHunk.getBaseHunk().getContentType())){
+      return true;
+    }
+    return false;
   }
 
   public static boolean detectReformatting(String baseString, String currentString) {
