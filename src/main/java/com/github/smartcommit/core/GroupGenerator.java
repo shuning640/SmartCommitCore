@@ -40,8 +40,8 @@ public class GroupGenerator {
   private static final Logger logger = Logger.getLogger(GroupGenerator.class);
 
   // meta data
-  private final String repoID;
-  private final String repoName;
+  private String repoID;
+  private String repoName;
   private Pair<String, String> srcDirs; // dirs to store the collected files
   private List<DiffFile> diffFiles;
   private List<DiffHunk> diffHunks;
@@ -63,6 +63,9 @@ public class GroupGenerator {
   Set<Integer> weakDependEdges = new HashSet<>();
   Set<String> generalNodes = new HashSet<>();
 
+  public GroupGenerator(){
+
+  }
   public GroupGenerator(
       String repoID,
       String repoName,
@@ -385,6 +388,35 @@ public class GroupGenerator {
     }
     return res;
   }
+
+  public Map<String, Group> generateSimpleGroups(){
+    indexToGroupMap.clear();
+    Map<String, Group> result = new LinkedHashMap<>(); // id:Group
+    Set<DiffNode> othersDiffNode = new TreeSet<>(diffNodeComparator());
+    Set<DiffNode> keyDiffNode = new TreeSet<>(diffNodeComparator());
+    for(DiffEdge edge : diffGraph.edgeSet()){
+      if(edge.getType().equals(DiffEdgeType.NONJAVA) || edge.getType().equals(DiffEdgeType.DOC)
+      || edge.getType().equals(DiffEdgeType.CONFIG) || edge.getType().equals(DiffEdgeType.RESOURCE)
+      || edge.getType().equals(DiffEdgeType.OTHERS) || edge.getType().equals(DiffEdgeType.REFORMAT)
+      || edge.getType().equals(DiffEdgeType.TEST)){
+        DiffNode target = diffGraph.getEdgeTarget(edge);
+        DiffNode source = diffGraph.getEdgeSource(edge);
+        othersDiffNode.add(target);
+        othersDiffNode.add(source);
+      }
+    }
+    createGroup(result, othersDiffNode, new HashSet<>(), GroupLabel.OTHER);
+
+    for (DiffHunk diffHunk : diffHunks) {
+      if (!indexToGroupMap.containsKey(diffHunk.getUniqueIndex())) {
+        keyDiffNode.add(findNodeByIndex(diffHunk.getUniqueIndex()));
+      }
+    }
+    createGroup(result, keyDiffNode, new HashSet<>(), GroupLabel.FEATURE);
+
+    return result;
+  }
+
 
   /**
    * Generate groups of changes either with a dynamic or fixed threshold

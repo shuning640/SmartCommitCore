@@ -27,100 +27,66 @@ public class Revert {
 
     public static void main(String [] args) throws Exception {
         String sql = "select * from regressions_all where is_clean=1 and is_dirty=0 and id not in (select regression_id from group_revert_result);\n";
-//        String sql = "select * from regressions_all where id = 8";
+//        String sql = "select * from regressions_all where id = 10";
         List<Regression> regressionList = MysqlManager.selectCleanRegressions(sql);
         PrintStream o = new PrintStream(new File("log.txt"));
         System.setOut(o);
-        doRevert(regressionList);
+        batchRegressionRevert(regressionList);
     }
 
 
-    public static void doRevert(List<Regression> regressionList) {
+    public static void batchRegressionRevert(List<Regression> regressionList) {
         for (int i = 0; i < regressionList.size(); i++) {
             try{
                 Regression regression = regressionList.get(i);
-                String projectName = regression.getProjectFullName();
-                if(projectName.contains("verdict-project_verdict")){
-                    System.out.println("regression: " + regression.getId() + " is verdict project");
-                    continue;
-                }
-
-                File projectDir = sourceCodeManager.getProjectDir(regression.getProjectFullName());
-                String regressionId = regression.getId();
-
-                Revision rfc = regression.getRfc();
-                File rfcDir = sourceCodeManager.checkout(regressionId, rfc, projectDir, projectName);
-                rfc.setLocalCodeDir(rfcDir);
-
-                if(!GitUtils.areCommitsConsecutive(rfcDir, regression.getWork().getCommitID(), regression.getRic().getCommitID())){
-                    System.out.println("regression: " + regression.getId() + " is not consecutive");
-                    FileUtils.deleteDirectory(rfcDir);
-                    continue;
-                }
-
-                Revision ric = regression.getRic();
-                File ricDir = sourceCodeManager.checkout(regressionId, ric, projectDir, projectName);
-                ric.setLocalCodeDir(ricDir);
-
-                Revision work = regression.getWork();
-                File workDir = sourceCodeManager.checkout(regressionId, work, projectDir, projectName);
-                work.setLocalCodeDir(workDir);
-
-                List<Revision> needToTestMigrateRevisionList = Arrays.asList(ric, work);
-                migrateTestAndDependency(rfc, needToTestMigrateRevisionList, regression.getTestCase());
-
-                sourceCodeManager.createShell(regression.getId(), projectName, ric, regression.getTestCase());
-                sourceCodeManager.createShell(regression.getId(), projectName, work, regression.getTestCase());
-
-                SmartCommit smartCommit = new SmartCommit(String.valueOf(projectName.hashCode()),
-                        projectName, Config.REPO_PATH + File.separator + projectName, Config.TEMP_DIR + projectName);
-                Map<String, Group> groups = smartCommit.analyzeCommit(ric.getCommitID());
-                System.out.println("regression: " + regression.getId() + " group size: " + groups.size());
-                Map<String, Integer> passGroups = new HashMap<>();
-                Map<String, Integer> ceGroups = new HashMap<>();
-                Set<HunkEntity> allHunks = new HashSet<>();
-                for(Map.Entry<String, Group> entry: groups.entrySet()){
-                    List<HunkEntity> hunks = smartCommit.group2Hunks(entry.getValue());
-                    hunks.removeIf(hunkEntity -> hunkEntity.getNewPath().contains("test") || hunkEntity.getOldPath().contains("test"));
-                    if(hunks.size() == 0){
-                        continue;
-                    }
-                    String path = ric.getLocalCodeDir().toString().replace("_ric","_tmp");
-                    Utils.copyDirToTarget(ric.getLocalCodeDir().toString(),path);
-                    revert(path,hunks);
-                    Executor executor = new Executor();
-                    executor.setDirectory(new File(path));
-                    String execStatement = System.getProperty("user.home").contains("lsn") ?
-                            "chmod u+x build.sh; chmod u+x test.sh; ./build.sh; ./test.sh;" :
-                            "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64; chmod u+x build.sh; chmod u+x test.sh; ./build.sh; ./test.sh; ";
-                    String result = executor.exec(execStatement).trim();
-                    System.out.println(entry.getKey() + ": Hunk size " + hunks.size() + "; Revert result " + result+ "; Group label " + entry.getValue().getIntentLabel());
-                    allHunks.addAll(hunks);
-                    if(result.contains("PASS")){
-                        passGroups.put(entry.getKey(),hunks.size());
-                    }
-                    else if(result.contains("CE")){
-                        ceGroups.put(entry.getKey(),hunks.size());
-                    }
-                }
-                int hunkSum = allHunks.size();
-                int minValue = 0;
-                if(!passGroups.isEmpty()){
-                    minValue = Collections.min(passGroups.values());
-                }
-
-                System.out.println(regressionId +  ": GroupSize" + groups.size() + " HunkSum" + hunkSum + " PassGroupNum" + passGroups.size() + " MinHunkNum" + minValue);
-                MysqlManager.insertGroupRevertResult(regressionId, groups.size(), hunkSum, passGroups.size(), minValue, ceGroups.size());
-
-                FileUtils.deleteDirectory(rfcDir);
-                FileUtils.deleteDirectory(ricDir);
-                FileUtils.deleteDirectory(workDir);
-                FileUtils.deleteDirectory(new File(ric.getLocalCodeDir().toString().replace("_ric","_tmp")));
+                regressionRevert(regression);
             }
             catch (Exception e){
                 e.printStackTrace();
             }
         }
+    }
+
+    public static void regressionRevert(Regression regression) throws Exception {
+        String projectName = regression.getProjectFullName();
+        if(projectName.contains("verdict-project_verdict")){
+            System.out.println("regression: " + regression.getId() + " is verdict project");
+            return;
+        }
+
+        File projectDir = sourceCodeManager.getProjectDir(regression.getProjectFullName());
+        String regressionId = regression.getId();
+
+        Revision rfc = regression.getRfc();
+        File rfcDir = sourceCodeManager.checkout(regressionId, rfc, projectDir, projectName);
+        rfc.setLocalCodeDir(rfcDir);
+
+        if(!GitUtils.areCommitsConsecutive(rfcDir, regression.getWork().getCommitID(), regression.getRic().getCommitID())){
+            System.out.println("regression: " + regression.getId() + " is not consecutive");
+            FileUtils.deleteDirectory(rfcDir);
+            return;
+        }
+
+        Revision ric = regression.getRic();
+        File ricDir = sourceCodeManager.checkout(regressionId, ric, projectDir, projectName);
+        ric.setLocalCodeDir(ricDir);
+
+        Revision work = regression.getWork();
+        File workDir = sourceCodeManager.checkout(regressionId, work, projectDir, projectName);
+        work.setLocalCodeDir(workDir);
+
+        List<Revision> needToTestMigrateRevisionList = Arrays.asList(ric, work);
+        migrateTestAndDependency(rfc, needToTestMigrateRevisionList, regression.getTestCase());
+
+        sourceCodeManager.createShell(regression.getId(), projectName, ric, regression.getTestCase());
+        sourceCodeManager.createShell(regression.getId(), projectName, work, regression.getTestCase());
+
+        SmartCommit.testGroups(regression);
+
+        FileUtils.deleteDirectory(rfcDir);
+        FileUtils.deleteDirectory(ricDir);
+        FileUtils.deleteDirectory(workDir);
+        FileUtils.deleteDirectory(new File(ric.getLocalCodeDir().toString().replace("_ric","_tmp")));
     }
 
     public static void revert(String path, List<HunkEntity> hunkEntities){

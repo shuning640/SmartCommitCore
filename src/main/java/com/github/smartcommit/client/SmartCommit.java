@@ -4,6 +4,7 @@ import com.github.smartcommit.core.GraphBuilder;
 import com.github.smartcommit.core.GroupGenerator;
 import com.github.smartcommit.core.RepoAnalyzer;
 import com.github.smartcommit.core.dd.MysqlManager;
+import com.github.smartcommit.core.dd.Revert;
 import com.github.smartcommit.io.DataCollector;
 import com.github.smartcommit.model.*;
 import com.github.smartcommit.model.constant.ChangeType;
@@ -48,6 +49,8 @@ public class SmartCommit {
   private double weightThreshold = 0.8D;
   private double minSimilarity = 0.8D;
   private int maxDistance = 1;
+
+  static GroupGenerator generator = new GroupGenerator();
 
   /**
    * Initial setup for analysis
@@ -270,7 +273,7 @@ public class SmartCommit {
     }
 
     // analyze the diff hunks
-    GroupGenerator generator =
+    generator =
         new GroupGenerator(
             repoID, repoName, srcDirs, diffFiles, allDiffHunks, baseGraph, currentGraph);
     generator.setMinSimilarity(minSimilarity);
@@ -544,6 +547,66 @@ public class SmartCommit {
       logger.error("Failed to clear the working tree.");
       return false;
     }
+  }
+
+  public static void testGroups(Regression regression) throws Exception {
+    String projectName = regression.getProjectFullName();
+    Revision ric = regression.getRic();
+    String regressionId = regression.getId();
+
+    SmartCommit smartCommit = new SmartCommit(String.valueOf(projectName.hashCode()),
+            projectName, Config.REPO_PATH + File.separator + projectName, Config.TEMP_DIR + projectName);
+    Map<String, Group> groups = smartCommit.analyzeCommit(ric.getCommitID());
+    System.out.println("regression: " + regression.getId() + " group size: " + groups.size());
+    Map<String, Integer> passGroups = new HashMap<>();
+    Map<String, Integer> ceGroups = new HashMap<>();
+    Set<HunkEntity> allHunks = new HashSet<>();
+    revertGroups(groups,smartCommit,ric, passGroups, ceGroups, allHunks);
+    if(passGroups.isEmpty()){
+      ceGroups.clear();
+      allHunks.clear();
+      groups = generator.generateSimpleGroups();
+      System.out.println("Do revert by 2 groups (others and feature): ");
+      revertGroups(groups,smartCommit,ric, passGroups, ceGroups, allHunks);
+    }
+    int hunkSum = allHunks.size();
+    int minValue = 0;
+    if(!passGroups.isEmpty()){
+      minValue = Collections.min(passGroups.values());
+    }
+
+    System.out.println(regressionId +  ": GroupSize" + groups.size() + " HunkSum" + hunkSum + " PassGroupNum" + passGroups.size() + " MinHunkNum" + minValue);
+    MysqlManager.insertGroupRevertResult(regressionId, groups.size(), hunkSum, passGroups.size(), minValue, ceGroups.size());
+  }
+
+  public static void revertGroups(Map<String, Group> groups, SmartCommit smartCommit, Revision ric,
+                                  Map<String, Integer> passGroups, Map<String, Integer> ceGroups,
+                                  Set<HunkEntity> allHunks) throws Exception {
+    for(Map.Entry<String, Group> entry: groups.entrySet()){
+      List<HunkEntity> hunks = smartCommit.group2Hunks(entry.getValue());
+      hunks.removeIf(hunkEntity -> hunkEntity.getNewPath().contains("test") || hunkEntity.getOldPath().contains("test"));
+      if(hunks.size() == 0){
+        continue;
+      }
+      String path = ric.getLocalCodeDir().toString().replace("_ric","_tmp");
+      Utils.copyDirToTarget(ric.getLocalCodeDir().toString(),path);
+      Revert.revert(path,hunks);
+      Executor executor = new Executor();
+      executor.setDirectory(new File(path));
+      String execStatement = System.getProperty("user.home").contains("lsn") ?
+              "chmod u+x build.sh; chmod u+x test.sh; ./build.sh; ./test.sh;" :
+              "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64; chmod u+x build.sh; chmod u+x test.sh; ./build.sh; ./test.sh; ";
+      String result = executor.exec(execStatement).trim();
+      System.out.println(entry.getKey() + ": Hunk size " + hunks.size() + "; Revert result " + result+ "; Group label " + entry.getValue().getIntentLabel());
+      allHunks.addAll(hunks);
+      if(result.contains("PASS")){
+        passGroups.put(entry.getKey(),hunks.size());
+      }
+      else if(result.contains("CE")){
+        ceGroups.put(entry.getKey(),hunks.size());
+      }
+    }
+
   }
 
   public static void main(String [] args) throws Exception {
