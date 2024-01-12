@@ -130,7 +130,7 @@ public class Revert {
             switch (type){
                 case DELETE:
                     List<String> newLine = getLinesFromWorkVersion(workPath,hunkEntity);
-                    line.addAll(Math.max(hunkEntity.getBeginB() - 1, 0),newLine);
+                    line.addAll(Math.max(hunkEntity.getBeginB(), 0),newLine);
                     break;
                 case INSERT:
                     line.subList(hunkEntity.getBeginB()-1, hunkEntity.getEndB()).clear();
