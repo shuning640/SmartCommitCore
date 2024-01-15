@@ -212,9 +212,44 @@ public class SmartCommit {
     // 1. analyze the repo
     RepoAnalyzer repoAnalyzer = new RepoAnalyzer(repoID, repoName, repoPath);
     List<DiffFile> diffFiles = repoAnalyzer.analyzeCommit(commitID);
-    if(diffFiles.size() > 200){
+    if(diffFiles.size() > 100){
         logger.info("Too many files to analyze at commit: " + commitID);
         return new HashMap<>();
+    }
+    List<DiffHunk> allDiffHunks = repoAnalyzer.getDiffHunks();
+
+    if (diffFiles.isEmpty() || allDiffHunks.isEmpty()) {
+      logger.info("No changes at commit: " + commitID);
+      return new HashMap<>();
+    }
+
+    this.id2DiffHunkMap = repoAnalyzer.getIdToDiffHunkMap();
+
+    // 2. collect the data into temp dir
+    DataCollector dataCollector = new DataCollector(repoName, tempDir);
+    // dirs that keeps the source code of diff files
+    Pair<String, String> srcDirs = dataCollector.collectDiffFilesAtCommit(commitID, diffFiles);
+
+    Map<String, Group> results = analyze(diffFiles, allDiffHunks, srcDirs);
+
+    dataCollector.collectDiffHunks(diffFiles, resultsDir);
+
+    exportGroupResults(results, resultsDir);
+    exportGroupDetails(results, resultsDir + File.separator + "details");
+
+    return results;
+  }
+
+  public Map<String, Group> analyzeCommit(String OldCommitID, String commitID) {
+    String resultsDir = tempDir + File.separator + commitID;
+    prepareTempDir(resultsDir);
+
+    // 1. analyze the repo
+    RepoAnalyzer repoAnalyzer = new RepoAnalyzer(repoID, repoName, repoPath);
+    List<DiffFile> diffFiles = repoAnalyzer.analyzeCommit(OldCommitID, commitID);
+    if(diffFiles.size() > 100){
+      logger.info("Too many files to analyze at commit: " + commitID);
+      return new HashMap<>();
     }
     List<DiffHunk> allDiffHunks = repoAnalyzer.getDiffHunks();
 
@@ -368,7 +403,7 @@ public class SmartCommit {
     Utils.moveFile(tempDir, outputDir,  "diffGraph.dot");
     com.github.smartcommit.util.Executor executor = new Executor();
     executor.setDirectory(new File(outputDir));
-    executor.exec("dot -Tpng diffGraph.dot -o diffGraph.png");
+//    executor.exec("dot -Tpng diffGraph.dot -o diffGraph.png");
     Gson gson = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     for (Map.Entry<String, Group> entry : generatedGroups.entrySet()) {
       Utils.writeStringToFile(
@@ -552,17 +587,18 @@ public class SmartCommit {
   public static void testGroups(Regression regression) throws Exception {
     String projectName = regression.getProjectFullName();
     Revision ric = regression.getRic();
+    Revision work = regression.getWork();
     String regressionId = regression.getId();
 
     SmartCommit smartCommit = new SmartCommit(String.valueOf(projectName.hashCode()),
             projectName, Config.REPO_PATH + File.separator + projectName, Config.TEMP_DIR + projectName);
-    Map<String, Group> groups = smartCommit.analyzeCommit(ric.getCommitID());
+    Map<String, Group> groups = smartCommit.analyzeCommit(work.getCommitID(), ric.getCommitID());
     System.out.println("regression: " + regression.getId() + " group size: " + groups.size());
     Map<String, Integer> passGroups = new HashMap<>();
     Map<String, Integer> ceGroups = new HashMap<>();
     Set<HunkEntity> allHunks = new HashSet<>();
     revertGroups(groups,smartCommit,ric, passGroups, ceGroups, allHunks);
-    if(passGroups.isEmpty()){
+    if(passGroups.isEmpty() && groups.size()!=0){
       ceGroups.clear();
       allHunks.clear();
       groups = generator.generateSimpleGroups();
@@ -582,6 +618,7 @@ public class SmartCommit {
   public static void revertGroups(Map<String, Group> groups, SmartCommit smartCommit, Revision ric,
                                   Map<String, Integer> passGroups, Map<String, Integer> ceGroups,
                                   Set<HunkEntity> allHunks) throws Exception {
+    int a = 0;
     for(Map.Entry<String, Group> entry: groups.entrySet()){
       List<HunkEntity> hunks = smartCommit.group2Hunks(entry.getValue());
       hunks.removeIf(hunkEntity -> hunkEntity.getNewPath().contains("test") || hunkEntity.getOldPath().contains("test"));
@@ -618,9 +655,10 @@ public class SmartCommit {
         Regression regression = regressionList.get(i);
         String projectName = regression.getProjectFullName();
         Revision ric = regression.getRic();
+        Revision work = regression.getWork();
         SmartCommit smartCommit = new SmartCommit(String.valueOf(projectName.hashCode()),
                 projectName, Config.REPO_PATH + File.separator + projectName, Config.TEMP_DIR + projectName);
-        Map<String, Group> groups = smartCommit.analyzeCommit(ric.getCommitID());
+        Map<String, Group> groups = smartCommit.analyzeCommit(work.getCommitID(), ric.getCommitID());
         System.out.println("regression: " + regression.getId() + " group size: " + groups.size());
       }
       catch (Exception e){

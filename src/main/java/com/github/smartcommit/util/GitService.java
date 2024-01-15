@@ -23,6 +23,8 @@ public interface GitService {
    */
   ArrayList<DiffFile> getChangedFilesAtCommit(String repoPath, String commitID);
 
+  ArrayList<DiffFile> getChangedFilesAtCommit(String repoPath,String OldCommitId, String commitID);
+
   /**
    * Get the diff hunks in the current working tree
    *
@@ -39,6 +41,8 @@ public interface GitService {
    * @return
    */
   List<DiffHunk> getDiffHunksAtCommit(String repoPath, String commitID,  List<DiffFile> diffFiles);
+
+  List<DiffHunk> getDiffHunksAtCommit(String repoPath,String OldCommitID,  String commitID,  List<DiffFile> diffFiles);
 
   /**
    * Get the file content at HEAD

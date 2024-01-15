@@ -20,6 +20,11 @@ public class GitServiceJGit implements GitService {
   }
 
   @Override
+  public ArrayList<DiffFile> getChangedFilesAtCommit(String repoPath, String OldCommitId, String commitID) {
+    return null;
+  }
+
+  @Override
   public List<DiffHunk> getDiffHunksInWorkingTree(String repoPath, List<DiffFile> diffFiles) {
     return null;
   }
@@ -27,6 +32,11 @@ public class GitServiceJGit implements GitService {
   @Override
   public List<DiffHunk> getDiffHunksAtCommit(
       String repoPath, String commitID, List<DiffFile> diffFiles) {
+    return null;
+  }
+
+  @Override
+  public List<DiffHunk> getDiffHunksAtCommit(String repoPath, String OldCommitID, String commitID, List<DiffFile> diffFiles) {
     return null;
   }
 
