@@ -83,6 +83,18 @@ public class RepoAnalyzer {
     return diffFiles;
   }
 
+  public List<DiffFile> analyzeCommit(String OldCommitID, String commitID) {
+    // analyze the diff files and hunks
+    GitService gitService = new GitServiceCGit();
+    ArrayList<DiffFile> diffFiles = gitService.getChangedFilesAtCommit(this.repoPath, OldCommitID, commitID);
+    if (!diffFiles.isEmpty()) {
+      gitService.getDiffHunksAtCommit(this.repoPath, OldCommitID, commitID, diffFiles);
+      this.diffFiles = diffFiles;
+      this.idToDiffFileMap = generateIDToDiffFileMap();
+    }
+    return diffFiles;
+  }
+
   /**
    * Generate fileID:diffFile map (for commit stage)
    *

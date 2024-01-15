@@ -286,6 +286,135 @@ public class GitServiceCGit implements GitService {
     return diffFileList;
   }
 
+  public ArrayList<DiffFile> getChangedFilesAtCommit(String repoPath,String OldCommitID,  String commitID) {
+    // git diff <start_commit> <end_commit>
+    // on Windows the ~ character must be used instead of ^
+    String output =
+            Utils.runSystemCommand(
+                    repoPath,
+                    StandardCharsets.UTF_8,
+                    "git",
+                    "diff",
+                    "--name-status",
+                    OldCommitID,
+                    commitID);
+    // early return
+    if (output.trim().isEmpty()) {
+      return new ArrayList<>();
+    }
+    ArrayList<DiffFile> diffFileList = new ArrayList<>();
+    String[] lines = output.split("\\r?\\n");
+    // ! use an independent incremental index to avoid index jump in case of invalid status output
+    // only increment index when creating new diff file
+    int fileIndex = 0;
+    for (int i = 0; i < lines.length; i++) {
+      String[] temp = lines[i].trim().split("\\s+");
+      String symbol = temp[0];
+      String relativePath = temp[1];
+      FileType fileType = Utils.checkFileType(repoPath, relativePath);
+      //                        String absolutePath = repoDir + File.separator + relativePath;
+      FileStatus status = Utils.convertSymbolToStatus(symbol);
+      DiffFile diffFile = null;
+      Charset charset = StandardCharsets.UTF_8;
+      switch (status) {
+        case MODIFIED:
+          diffFile =
+                  new DiffFile(
+                          fileIndex++,
+                          status,
+                          fileType,
+                          charset,
+                          relativePath,
+                          relativePath,
+                          (fileType == FileType.BIN
+                                  ? ""
+                                  : getContentAtCommit(charset, repoPath, relativePath, commitID + "~")),
+                          (fileType == FileType.BIN
+                                  ? ""
+                                  : getContentAtCommit(charset, repoPath, relativePath, commitID)));
+          break;
+        case ADDED:
+        case UNTRACKED:
+          diffFile =
+                  new DiffFile(
+                          fileIndex++,
+                          status,
+                          fileType,
+                          charset,
+                          "",
+                          relativePath,
+                          "",
+                          (fileType == FileType.BIN
+                                  ? ""
+                                  : getContentAtCommit(charset, repoPath, relativePath, commitID)));
+          break;
+        case DELETED:
+          diffFile =
+                  new DiffFile(
+                          fileIndex++,
+                          status,
+                          fileType,
+                          charset,
+                          relativePath,
+                          "",
+                          (fileType == FileType.BIN
+                                  ? ""
+                                  : getContentAtCommit(charset, repoPath, relativePath, commitID + "~")),
+                          "");
+          break;
+        case RENAMED:
+        case COPIED:
+          if (temp.length == 4) {
+            // C/R aaa -> bbb
+            String oldPath = temp[1];
+            String newPath = temp[3];
+            fileType = Utils.checkFileType(repoPath, newPath);
+            diffFile =
+                    new DiffFile(
+                            fileIndex++,
+                            status,
+                            fileType,
+                            charset,
+                            oldPath,
+                            newPath,
+                            (fileType == FileType.BIN
+                                    ? ""
+                                    : getContentAtCommit(charset, repoPath, oldPath, commitID + "~")),
+                            (fileType == FileType.BIN
+                                    ? ""
+                                    : getContentAtCommit(charset, repoPath, newPath, commitID)));
+          } else if (temp.length == 3) {
+            // CXX/RXX aaa bbb
+            String oldPath = temp[1];
+            String newPath = temp[2];
+            fileType = Utils.checkFileType(repoPath, newPath);
+            diffFile =
+                    new DiffFile(
+                            fileIndex++,
+                            status,
+                            fileType,
+                            charset,
+                            oldPath,
+                            newPath,
+                            (fileType == FileType.BIN
+                                    ? ""
+                                    : getContentAtCommit(charset, repoPath, oldPath, commitID + "~")),
+                            (fileType == FileType.BIN
+                                    ? ""
+                                    : getContentAtCommit(charset, repoPath, newPath, commitID)));
+          }
+          break;
+        default:
+          break;
+      }
+      if (diffFile != null) {
+        diffFileList.add(diffFile);
+      }
+    }
+    // assert: diffFileList.size() == fileIndex + 1
+    return diffFileList;
+  }
+
   @Override
   public List<DiffHunk> getDiffHunksInWorkingTree(String repoPath, List<DiffFile> diffFiles) {
     // unstage the staged files first
@@ -563,6 +692,23 @@ public class GitServiceCGit implements GitService {
     String diffOutput =
         Utils.runSystemCommand(
             repoPath, StandardCharsets.UTF_8, "git", "diff", "-U0", commitID + "~", commitID);
+    List<Diff> diffs = new ArrayList<>();
+    if (!diffOutput.trim().isEmpty()) {
+      // with -U0 (no context lines), the generated patch cannot be applied successfully
+      DiffParser parser = new UnifiedDiffParser();
+      diffs = parser.parse(new ByteArrayInputStream(diffOutput.getBytes()));
+    }
+
+    return generateDiffHunks(repoPath, diffs, diffFiles);
+  }
+
+  public List<DiffHunk> getDiffHunksAtCommit(
+          String repoPath, String OldCommitID, String commitID, List<DiffFile> diffFiles) {
+    // git diff <start_commit> <end_commit>
+    // on Windows the ~ character must be used instead of ^
+    String diffOutput =
+            Utils.runSystemCommand(
+                    repoPath, StandardCharsets.UTF_8, "git", "diff", "-U0", OldCommitID, commitID);
     List<Diff> diffs = new ArrayList<>();
     if (!diffOutput.trim().isEmpty()) {
       // with -U0 (no context lines), the generated patch cannot be applied successfully

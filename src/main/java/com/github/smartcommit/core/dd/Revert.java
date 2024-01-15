@@ -38,10 +38,12 @@ public class Revert {
     public static void batchRegressionRevert(List<Regression> regressionList) {
         for (int i = 0; i < regressionList.size(); i++) {
             try{
+                System.out.println("revert regression: " + regressionList.get(i).getId());
                 Regression regression = regressionList.get(i);
                 regressionRevert(regression);
             }
             catch (Exception e){
+                System.out.println(e);
                 e.printStackTrace();
             }
         }
@@ -49,8 +51,8 @@ public class Revert {
 
     public static void regressionRevert(Regression regression) throws Exception {
         String projectName = regression.getProjectFullName();
-        if(projectName.contains("verdict-project_verdict")){
-            System.out.println("regression: " + regression.getId() + " is verdict project");
+        if(projectName.contains("verdict-project_verdict") || projectName.contains("uklimaschewski_EvalEx")){
+            System.out.println("regression: " + regression.getId() + " is " + projectName);
             return;
         }
 
@@ -61,11 +63,11 @@ public class Revert {
         File rfcDir = sourceCodeManager.checkout(regressionId, rfc, projectDir, projectName);
         rfc.setLocalCodeDir(rfcDir);
 
-        if(!GitUtils.areCommitsConsecutive(rfcDir, regression.getWork().getCommitID(), regression.getRic().getCommitID())){
-            System.out.println("regression: " + regression.getId() + " is not consecutive");
-            FileUtils.deleteDirectory(rfcDir);
-            return;
-        }
+//        if(!GitUtils.areCommitsConsecutive(rfcDir, regression.getWork().getCommitID(), regression.getRic().getCommitID())){
+//            System.out.println("regression: " + regression.getId() + " is not consecutive");
+//            FileUtils.deleteDirectory(rfcDir);
+//            return;
+//        }
 
         Revision ric = regression.getRic();
         File ricDir = sourceCodeManager.checkout(regressionId, ric, projectDir, projectName);
@@ -80,6 +82,17 @@ public class Revert {
 
         sourceCodeManager.createShell(regression.getId(), projectName, ric, regression.getTestCase());
         sourceCodeManager.createShell(regression.getId(), projectName, work, regression.getTestCase());
+
+        Executor executor = new Executor();
+        executor.setDirectory(workDir);
+        String execStatement = System.getProperty("user.home").contains("lsn") ?
+                "chmod u+x build.sh; chmod u+x test.sh; ./build.sh; ./test.sh;" :
+                "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64; chmod u+x build.sh; chmod u+x test.sh; ./build.sh; ./test.sh; ";
+        String result = executor.exec(execStatement).trim();
+        if(!result.contains("PASS")){
+            System.out.println("regression: " + regression.getId() + " work version test failed");
+            return;
+        }
 
         SmartCommit.testGroups(regression);
 
