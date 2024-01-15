@@ -121,13 +121,13 @@ public class MysqlManager {
         }
     }
 
-    public static void insertGroupRevertResult(String regressionId, int groupsNum,int hunkNum, int passNum, int resultHunkNum, int ceNum) throws Exception {
+    public static void insertGroupRevertResult(String tableName, String regressionId, int groupsNum,int hunkNum, int passNum, int resultHunkNum, int ceNum) throws Exception {
         if (conn == null) {
             getConn();
         }
         PreparedStatement pstmt = null;
         try {
-            pstmt =conn.prepareStatement("insert into group_revert_result(regression_id,group_num,hunk_num,pass_num,result_hunk_num,ce_num) " +
+            pstmt =conn.prepareStatement("insert into " + tableName+ " (regression_id,group_num,hunk_num,pass_num,result_hunk_num,ce_num) " +
                     "values(?,?,?,?,?,?)");
             pstmt.setInt(1, Integer.parseInt(regressionId));
             pstmt.setInt(2,groupsNum);

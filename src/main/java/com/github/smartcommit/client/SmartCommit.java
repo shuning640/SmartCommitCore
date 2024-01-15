@@ -598,21 +598,26 @@ public class SmartCommit {
     Map<String, Integer> ceGroups = new HashMap<>();
     Set<HunkEntity> allHunks = new HashSet<>();
     revertGroups(groups,smartCommit,ric, passGroups, ceGroups, allHunks);
+    int hunkSum = allHunks.size();
+    int minValue = 0;
+    if(!passGroups.isEmpty()){
+      minValue = Collections.min(passGroups.values());
+    }
+    System.out.println(regressionId +  ": GroupSize" + groups.size() + " HunkSum" + hunkSum + " PassGroupNum" + passGroups.size() + " MinHunkNum" + minValue);
+    MysqlManager.insertGroupRevertResult("group_revert_result_v8", regressionId, groups.size(), hunkSum, passGroups.size(), minValue, ceGroups.size());
+
     if(passGroups.isEmpty() && groups.size()!=0){
       ceGroups.clear();
       allHunks.clear();
       groups = generator.generateSimpleGroups();
       System.out.println("Do revert by 2 groups (others and feature): ");
       revertGroups(groups,smartCommit,ric, passGroups, ceGroups, allHunks);
+      if(!passGroups.isEmpty()){
+        minValue = Collections.min(passGroups.values());
+      }
     }
-    int hunkSum = allHunks.size();
-    int minValue = 0;
-    if(!passGroups.isEmpty()){
-      minValue = Collections.min(passGroups.values());
-    }
-
     System.out.println(regressionId +  ": GroupSize" + groups.size() + " HunkSum" + hunkSum + " PassGroupNum" + passGroups.size() + " MinHunkNum" + minValue);
-    MysqlManager.insertGroupRevertResult(regressionId, groups.size(), hunkSum, passGroups.size(), minValue, ceGroups.size());
+    MysqlManager.insertGroupRevertResult("group_revert_result_v9", regressionId, groups.size(), hunkSum, passGroups.size(), minValue, ceGroups.size());
   }
 
   public static void revertGroups(Map<String, Group> groups, SmartCommit smartCommit, Revision ric,
