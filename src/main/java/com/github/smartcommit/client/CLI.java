@@ -98,7 +98,7 @@ public class CLI {
   }
 
   /** Run merging according to given options */
-  private void run(String[] args) {
+  private void run(String[] args)  {
     JCommander commandLineOptions = new JCommander(this);
     try {
       commandLineOptions.parse(args);
@@ -128,7 +128,7 @@ public class CLI {
       } else {
         System.out.println("End analysis, but found no Changes.");
       }
-    } catch (ParameterException pe) {
+    } catch (Exception pe) {
       System.err.println(pe.getMessage());
       commandLineOptions.setProgramName("SmartCommit");
       commandLineOptions.usage();

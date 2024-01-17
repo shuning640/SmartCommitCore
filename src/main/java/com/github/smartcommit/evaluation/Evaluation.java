@@ -47,7 +47,7 @@ public class Evaluation {
   private static final String mongoDBUrl = "mongodb://localhost:27017";
   private static final String csvDir = dataDir + "viz/";
 
-  public static void main(String[] args) {
+  public static void main(String[] args) throws Exception {
     BasicConfigurator.configure();
     org.apache.log4j.Logger.getRootLogger().setLevel(Level.INFO);
 
@@ -68,7 +68,7 @@ public class Evaluation {
    *
    * @param repoPath
    */
-  private static void runOpenSrc(String repoName, String repoPath, String outputDir, int step) {
+  private static void runOpenSrc(String repoName, String repoPath, String outputDir, int step) throws Exception {
     System.out.println("Open Source Repo: " + repoName + " Step: " + step);
     String smartCommitOutput = initOutputCSV("SmartCommit", repoName, step);
 
@@ -988,7 +988,7 @@ public class Evaluation {
     }
   }
 
-  private static void debug(String repoName, String repoPath, String tempDir, String commitString) {
+  private static void debug(String repoName, String repoPath, String tempDir, String commitString) throws Exception{
 
     String[] commitIDs = commitString.split("_");
 

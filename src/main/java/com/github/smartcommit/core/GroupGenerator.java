@@ -395,10 +395,11 @@ public class GroupGenerator {
     Set<DiffNode> othersDiffNode = new TreeSet<>(diffNodeComparator());
     Set<DiffNode> keyDiffNode = new TreeSet<>(diffNodeComparator());
     for(DiffEdge edge : diffGraph.edgeSet()){
-      if(edge.getType().equals(DiffEdgeType.NONJAVA) || edge.getType().equals(DiffEdgeType.DOC)
-      || edge.getType().equals(DiffEdgeType.CONFIG) || edge.getType().equals(DiffEdgeType.RESOURCE)
-      || edge.getType().equals(DiffEdgeType.OTHERS) || edge.getType().equals(DiffEdgeType.REFORMAT)
-      || edge.getType().equals(DiffEdgeType.TEST)){
+      if(edge.getType().equals(DiffEdgeType.REFORMAT) || edge.getType().equals(DiffEdgeType.TEST)
+//              || edge.getType().equals(DiffEdgeType.NONJAVA) || edge.getType().equals(DiffEdgeType.DOC)
+//              || edge.getType().equals(DiffEdgeType.CONFIG) || edge.getType().equals(DiffEdgeType.RESOURCE)
+//              || edge.getType().equals(DiffEdgeType.OTHERS)
+      ){
         DiffNode target = diffGraph.getEdgeTarget(edge);
         DiffNode source = diffGraph.getEdgeSource(edge);
         othersDiffNode.add(target);
@@ -1477,7 +1478,8 @@ public class GroupGenerator {
 
   public static String removeComments(String code) {
 //    return code.replaceAll("//.*|/\\*(?:.|[\\n\\r])*?\\*/", "")
-    return code.replaceAll("//.*|/\\*(.|\\R)*?\\*/", "")
+//    return code.replaceAll("//.*|/\\*(.|\\R)*?\\*/", "")
+    return code.replaceAll("//.*|/\\*[^*]*\\*+([^*/][^*]*\\*+)*/", "")
             .replaceAll("\\\\t|[\\\\r?\\\\n]+|\\s+", "");
   }
 

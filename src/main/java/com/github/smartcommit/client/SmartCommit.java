@@ -113,7 +113,7 @@ public class SmartCommit {
    *
    * @return suggested groups <id:group>
    */
-  public Map<String, Group> analyzeWorkingTree() {
+  public Map<String, Group> analyzeWorkingTree() throws Exception{
     prepareTempDir(tempDir);
     // 1. analyze the repo
     RepoAnalyzer repoAnalyzer = new RepoAnalyzer(repoID, repoName, repoPath);
@@ -205,7 +205,7 @@ public class SmartCommit {
    * @param commitID the target commit hash id
    * @return suggested groups <id:group>
    */
-  public Map<String, Group> analyzeCommit(String commitID) {
+  public Map<String, Group> analyzeCommit(String commitID) throws Exception{
     String resultsDir = tempDir + File.separator + commitID;
     prepareTempDir(resultsDir);
 
@@ -240,7 +240,7 @@ public class SmartCommit {
     return results;
   }
 
-  public Map<String, Group> analyzeCommit(String OldCommitID, String commitID) {
+  public Map<String, Group> analyzeCommit(String OldCommitID, String commitID) throws Exception{
     String resultsDir = tempDir + File.separator + commitID;
     prepareTempDir(resultsDir);
 
@@ -298,8 +298,7 @@ public class SmartCommit {
    *
    */
   public Map<String, Group> analyze(
-      List<DiffFile> diffFiles, List<DiffHunk> allDiffHunks, Pair<String, String> srcDirs) {
-
+          List<DiffFile> diffFiles, List<DiffHunk> allDiffHunks, Pair<String, String> srcDirs) throws Exception {
     try {
       buildRefGraphs(diffFiles, srcDirs);
     } catch (Exception e) {

@@ -26,10 +26,11 @@ public class Revert {
     static SourceCodeManager sourceCodeManager = new SourceCodeManager();
 
     public static void main(String [] args) throws Exception {
-        String sql = "select * from regressions_all where is_clean=1 and is_dirty=0 and id not in (select regression_id from group_revert_result);\n";
-//        String sql = "select * from regressions_all where id = 10";
+        String tableName = "group_revert_result_v9";
+        String sql = "select * from regressions_all where is_clean=1 and is_dirty=0 and id not in (select regression_id from " + tableName + ");\n";
+//        String sql = "select * from regressions_all where id =1556";
         List<Regression> regressionList = MysqlManager.selectCleanRegressions(sql);
-        PrintStream o = new PrintStream(new File("log.txt"));
+        PrintStream o = new PrintStream(new File("log_" + tableName +".txt"));
         System.setOut(o);
         batchRegressionRevert(regressionList);
     }
@@ -83,8 +84,10 @@ public class Revert {
         sourceCodeManager.createShell(regression.getId(), projectName, ric, regression.getTestCase());
         sourceCodeManager.createShell(regression.getId(), projectName, work, regression.getTestCase());
 
+        String path = work.getLocalCodeDir().toString().replace("_work","_tmp");
+        Utils.copyDirToTarget(work.getLocalCodeDir().toString(),path);
         Executor executor = new Executor();
-        executor.setDirectory(workDir);
+        executor.setDirectory(new File(path));
         String execStatement = System.getProperty("user.home").contains("lsn") ?
                 "chmod u+x build.sh; chmod u+x test.sh; ./build.sh; ./test.sh;" :
                 "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64; chmod u+x build.sh; chmod u+x test.sh; ./build.sh; ./test.sh; ";
@@ -104,7 +107,7 @@ public class Revert {
 
     public static void revert(String path, List<HunkEntity> hunkEntities){
         try{
-            Map<String,List<HunkEntity>> stringListMap = hunkEntities.stream().collect(Collectors.groupingBy(HunkEntity::getNewPath));
+            Map<String,List<HunkEntity>> stringListMap = hunkEntities.stream().collect(Collectors.groupingBy(entity -> entity.getNewPath() + "-" + entity.getOldPath()));
             for (Map.Entry<String,List<HunkEntity>> entry: stringListMap.entrySet()){
                 revertFile(path,entry.getValue());
             }

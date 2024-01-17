@@ -43,7 +43,6 @@ public class TestReformatting {
   @Test
   public void testComment() {
     List<String> s1 = new ArrayList<>();
-
     s1.add("  /** Convert system-dependent path to the unified unix style */\n");
     s1.add("  public static String formatPath(String path) {\n");
 
@@ -52,8 +51,16 @@ public class TestReformatting {
     s2.add("       * Convert system-dependent path to the unified unix style ");
     s2.add("*/\n");
     s2.add("  public static String formatPath(String path) {\n");
+
+    List<String> s3 = new ArrayList<>();
+    s3.add("  // Convert system-dependent path to the unified unix style\n");
+    s3.add("  public static String formatPath(String path) {\n");
+
     String baseString = Utils.convertListLinesToString(s1);
     String currentString = Utils.convertListLinesToString(s2);
+    assertTrue(GroupGenerator.detectReformatting(baseString, currentString)) ;
+
+    currentString = Utils.convertListLinesToString(s3);
     assertTrue(GroupGenerator.detectReformatting(baseString, currentString)) ;
 //    assertThat(Utils.convertListToStringNoFormat(s1))
 //        .isEqualTo(Utils.convertListToStringNoFormat(s2));

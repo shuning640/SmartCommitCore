@@ -308,7 +308,7 @@ public class GitServiceCGit implements GitService {
     // only increment index when creating new diff file
     int fileIndex = 0;
     for (int i = 0; i < lines.length; i++) {
-      String[] temp = lines[i].trim().split("\\s+");
+      String[] temp = lines[i].trim().split("\\s+",2);
       String symbol = temp[0];
       String relativePath = temp[1];
       FileType fileType = Utils.checkFileType(repoPath, relativePath);
@@ -328,7 +328,7 @@ public class GitServiceCGit implements GitService {
                           relativePath,
                           (fileType == FileType.BIN
                                   ? ""
-                                  : getContentAtCommit(charset, repoPath, relativePath, commitID + "~")),
+                                  : getContentAtCommit(charset, repoPath, relativePath, OldCommitID)),
                           (fileType == FileType.BIN
                                   ? ""
                                   : getContentAtCommit(charset, repoPath, relativePath, commitID)));
@@ -359,7 +359,7 @@ public class GitServiceCGit implements GitService {
                           "",
                           (fileType == FileType.BIN
                                   ? ""
-                                  : getContentAtCommit(charset, repoPath, relativePath, commitID + "~")),
+                                  : getContentAtCommit(charset, repoPath, relativePath, OldCommitID)),
                           "");
           break;
         case RENAMED:
@@ -379,7 +379,7 @@ public class GitServiceCGit implements GitService {
                             newPath,
                             (fileType == FileType.BIN
                                     ? ""
-                                    : getContentAtCommit(charset, repoPath, oldPath, commitID + "~")),
+                                    : getContentAtCommit(charset, repoPath, oldPath, OldCommitID)),
                             (fileType == FileType.BIN
                                     ? ""
                                     : getContentAtCommit(charset, repoPath, newPath, commitID)));
@@ -398,7 +398,7 @@ public class GitServiceCGit implements GitService {
                             newPath,
                             (fileType == FileType.BIN
                                     ? ""
-                                    : getContentAtCommit(charset, repoPath, oldPath, commitID + "~")),
+                                    : getContentAtCommit(charset, repoPath, oldPath, OldCommitID)),
                             (fileType == FileType.BIN
                                     ? ""
                                     : getContentAtCommit(charset, repoPath, newPath, commitID)));
