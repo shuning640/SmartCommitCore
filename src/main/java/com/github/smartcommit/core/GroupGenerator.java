@@ -943,7 +943,7 @@ public class GroupGenerator {
     }
     // 找到出现次数大于等于三次且不是键的字符串
     for (Map.Entry<String,  Set<String>> entry : stringCounts.entrySet()) {
-      if (entry.getValue().size() >= 3 && !hardLinks.containsKey(entry.getKey())) {
+      if (entry.getValue().size() >= 3 && (!hardLinks.containsKey(entry.getKey()) || (hardLinks.get(entry.getKey()).size() == 1 && hardLinks.get(entry.getKey()).contains(entry.getKey())))) {
         generalNodes.add(entry.getKey());
       }
     }
