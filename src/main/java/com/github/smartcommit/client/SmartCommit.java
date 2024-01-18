@@ -267,6 +267,8 @@ public class SmartCommit {
 
     Map<String, Group> results = analyze(diffFiles, allDiffHunks, srcDirs);
 
+    Utils.writeStringToFile(generator.buildGroupsGraph(results), resultsDir + File.separator + "groupGraph.dot");
+
     dataCollector.collectDiffHunks(diffFiles, resultsDir);
 
     exportGroupResults(results, resultsDir);
@@ -400,9 +402,11 @@ public class SmartCommit {
    */
   public void exportGroupResults(Map<String, Group> generatedGroups, String outputDir) {
     Utils.moveFile(tempDir, outputDir,  "diffGraph.dot");
+//    Utils.moveFile(tempDir, outputDir,  "groupGraph.dot");
     com.github.smartcommit.util.Executor executor = new Executor();
     executor.setDirectory(new File(outputDir));
     executor.exec("dot -Tpng diffGraph.dot -o diffGraph.png");
+    executor.exec("dot -Tpng groupGraph.dot -o groupGraph.png");
     Gson gson = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     for (Map.Entry<String, Group> entry : generatedGroups.entrySet()) {
       Utils.writeStringToFile(
@@ -605,16 +609,6 @@ public class SmartCommit {
     System.out.println(regressionId +  ": GroupSize" + groups.size() + " HunkSum" + hunkSum + " PassGroupNum" + passGroups.size() + " MinHunkNum" + minValue);
     MysqlManager.insertGroupRevertResult("group_revert_result_v8", regressionId, groups.size(), hunkSum, passGroups.size(), minValue, ceGroups.size());
 
-    if(passGroups.isEmpty() && groups.size()!=0){
-      ceGroups.clear();
-      allHunks.clear();
-      groups = generator.generateSimpleGroups();
-      System.out.println("Do revert by 2 groups (others and feature): ");
-      revertGroups(groups,smartCommit,ric, passGroups, ceGroups, allHunks);
-      if(!passGroups.isEmpty()){
-        minValue = Collections.min(passGroups.values());
-      }
-    }
     System.out.println(regressionId +  ": GroupSize" + groups.size() + " HunkSum" + hunkSum + " PassGroupNum" + passGroups.size() + " MinHunkNum" + minValue);
     MysqlManager.insertGroupRevertResult("group_revert_result_v9", regressionId, groups.size(), hunkSum, passGroups.size(), minValue, ceGroups.size());
   }
@@ -647,12 +641,11 @@ public class SmartCommit {
         ceGroups.put(entry.getKey(),hunks.size());
       }
     }
-
   }
 
   public static void main(String [] args) throws Exception {
 //    String sql = "select * from regressions_all where is_clean=1 and is_dirty=0 and id not in (select regression_id from group_revert_result);\n";
-    String sql = "select * from regressions_all where id = 28";
+    String sql = "select * from regressions_all where id = 10";
     List<Regression> regressionList = MysqlManager.selectCleanRegressions(sql);
     for (int i = 0; i < regressionList.size(); i++) {
       try{
