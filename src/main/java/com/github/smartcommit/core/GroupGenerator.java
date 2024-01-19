@@ -774,6 +774,23 @@ public class GroupGenerator {
     }
   }
 
+  private boolean isFeatureEnhancement(Group group){
+    int totalAdd = 0;
+    int totalDelete = 0;
+    for (String index : group.getDiffHunkIndices()){
+      DiffHunk hunk = getDiffHunkByIndex(index);
+      int delLen = (int) hunk.getBaseHunk().getCodeSnippet().stream().filter(str -> !str.isEmpty()).count();
+      int addLen = (int) hunk.getCurrentHunk().getCodeSnippet().stream().filter(str -> !str.isEmpty()).count();
+      if (addLen > 10 && (delLen == 0 || addLen / (double) delLen > 3)) {
+        return true;
+      }
+      totalAdd += addLen;
+      totalDelete += delLen;
+    }
+
+    return totalAdd > 20 && (totalDelete == 0 || totalAdd / (double) totalDelete > 3);
+  }
+
   /** Create a new group to group given diff hunks */
   private String createGroup(
       Map<String, Group> groups,
@@ -1053,6 +1070,9 @@ public class GroupGenerator {
     Group sourceGroup = findGroupByIndex(source);
     Group targetGroup = findGroupByIndex(target);
     GroupEdge existingEdge = groupsGraph.getEdge(sourceGroup, targetGroup);
+    if(sourceGroup.getIntentLabel().equals(GroupLabel.REFORMAT) || targetGroup.getIntentLabel().equals(GroupLabel.REFORMAT)){
+      return;
+    }
     if (existingEdge != null && existingEdge.getType().equals(type)) {
       existingEdge.increaseWeight(weight);
     } else {
