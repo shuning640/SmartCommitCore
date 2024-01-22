@@ -2,6 +2,8 @@ package com.github.smartcommit.model.constant;
 
 public enum GroupLabel {
   FEATURE("Add or modify feature"), // new feature
+  ADDFEATURE("Add feature"), // new feature
+  FEATUREENHANCEMENT("Feature Enhancement"), // feature enhancement
   REFACTOR("Refactor code structure"), // refactoring
   FIX("Fix bug"), // fix bugs
   OPT("Optimize code"), // optimization for existing functions

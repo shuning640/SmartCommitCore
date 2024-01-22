@@ -40,6 +40,15 @@ public class Group {
   }
 
   public Group(
+          String repoID, String repoName, String groupID, List<String> diffHunkIndices, List<String> diffHunkIDs) {
+    this.repoID = repoID;
+    this.repoName = repoName;
+    this.groupID = groupID;
+    this.diffHunkIndices = diffHunkIndices;
+    this.diffHunkIDs = diffHunkIDs;
+  }
+
+  public Group(
       String repoID,
       String repoName,
       String groupID,

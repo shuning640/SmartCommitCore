@@ -23,6 +23,7 @@ import gr.uom.java.xmi.diff.CodeRange;
 import gr.uom.java.xmi.diff.UMLModelDiff;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.log4j.Logger;
+import org.eclipse.jdt.core.dom.*;
 import org.jgrapht.Graph;
 import org.jgrapht.Graphs;
 import org.jgrapht.alg.connectivity.ConnectivityInspector;
@@ -488,7 +489,7 @@ public class GroupGenerator {
           Set<DiffNode> nodes = new TreeSet<>(diffNodeComparator());
           nodes.add(source);
           nodes.add(target);
-          createGroup(result, nodes, linkCategories, getIntentFromEdges(edgeTypes));
+          createGroup(result, nodes, linkCategories);
           linkCategories.clear();
           edgeTypes.clear();
         }
@@ -510,8 +511,15 @@ public class GroupGenerator {
       groupByFile.get(fileIndex).add(node);
     }
     for (Map.Entry<String, Set<DiffNode>> entry : groupByFile.entrySet()) {
-      createGroup(result, entry.getValue(), new HashSet<>(), GroupLabel.OTHER);
+      createGroup(result, entry.getValue(), new HashSet<>());
     }
+
+    for(Map.Entry<String, Group> group : result.entrySet()){
+      GroupLabel intent = getIntent(group.getValue(), edgeList);
+      group.getValue().setIntentLabel(intent);
+      group.getValue().setCommitMsg(intent.toString().toLowerCase() + ": " + intent.label + " ...");
+    }
+
     buildGroupsGraph(result);
     return result;
   }
@@ -740,13 +748,14 @@ public class GroupGenerator {
   }
 
   private GroupLabel getIntentFromEdges(List<DiffEdgeType> edgeTypes) {
+    if(edgeTypes.size() == 0) {
+      return null;
+    }
     if (edgeTypes.contains(DiffEdgeType.REFACTOR)) {
       return GroupLabel.REFACTOR;
     }
     DiffEdgeType edgeType = Utils.mostCommon(edgeTypes);
     switch (edgeType) {
-      case SIMILAR:
-        return GroupLabel.FIX;
       case MOVING:
       case REFORMAT:
         return GroupLabel.REFORMAT;
@@ -764,14 +773,41 @@ public class GroupGenerator {
         }
       case NONJAVA:
         return GroupLabel.NONJAVA;
-      case CLOSE:
-      case DEPEND:
       default:
-        // TODO: only consider groups including new declaration nodes as new feature
-        return GroupLabel.FEATURE;
-        // TODO: consider groups including simply add test cases/methods changes as test
-        // GroupLabel.TEST
+        return null;
+//      case SIMILAR:
+//        return GroupLabel.FIX;
+//      case CLOSE:
+//      case DEPEND:
+//      default:
+//        // TODO: only consider groups including new declaration nodes as new feature
+//        return GroupLabel.FEATURE;
+//        // TODO: consider groups including simply add test cases/methods changes as test
+//        // GroupLabel.TEST
     }
+  }
+
+  private GroupLabel getIntent(Group group, List<DiffEdge> edgeList) {
+    List<DiffEdgeType> edgeTypes = new ArrayList<>();
+    for(DiffEdge edge : edgeList){
+      DiffNode source = diffGraph.getEdgeSource(edge);
+      DiffNode target = diffGraph.getEdgeTarget(edge);
+      if(group.getDiffHunkIndices().contains(source.getIndex()) || group.getDiffHunkIndices().contains(target.getIndex())){
+        edgeTypes.add(edge.getType());
+      }
+    }
+    GroupLabel res = getIntentFromEdges(edgeTypes);
+    if(res != null){
+      return res;
+    }
+    //todo detect ADD Feature
+    if(isAddFeature(group)){
+      return GroupLabel.ADDFEATURE;
+    }
+    if(isFeatureEnhancement(group)){
+      return GroupLabel.FEATUREENHANCEMENT;
+    }
+    return GroupLabel.FIX;
   }
 
   private boolean isFeatureEnhancement(Group group){
@@ -791,17 +827,64 @@ public class GroupGenerator {
     return totalAdd > 20 && (totalDelete == 0 || totalAdd / (double) totalDelete > 3);
   }
 
+  private boolean isAddFeature(Group group){
+    for (String index : group.getDiffHunkIndices()) {
+      DiffHunk hunk = getDiffHunkByIndex(index);
+      if(detectNewFeature(hunk)){
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private boolean detectNewFeature(DiffHunk diffHunk) {
+    if(diffHunk.getChangeType().equals(ChangeType.ADDED) ||
+            (diffHunk.getChangeType().equals(ChangeType.MODIFIED) && isSpecialContentType(diffHunk.getBaseHunk().getContentType()))) {
+      List<ASTNode> nodes = diffHunk.getCurrentHunk().getCoveredNodes();
+      for (ASTNode node: nodes ){
+        if (node instanceof TypeDeclaration) {
+          TypeDeclaration typeDeclaration = (TypeDeclaration) node;
+          if(Modifier.isPublic(typeDeclaration.getModifiers())){
+            return true;
+          }
+        }
+        if (node instanceof MethodDeclaration) {
+          MethodDeclaration methodDeclaration = (MethodDeclaration) node;
+          if(Modifier.isPublic(methodDeclaration.getModifiers())){
+            return true;
+          }
+        }
+        if (node instanceof FieldDeclaration) {
+          FieldDeclaration fieldDeclaration = (FieldDeclaration) node;
+          if(Modifier.isPublic(fieldDeclaration.getModifiers())){
+            return true;
+          }
+        }
+        if (node instanceof VariableDeclarationStatement) {
+          VariableDeclarationStatement fieldDeclaration = (VariableDeclarationStatement) node;
+          if(Modifier.isPublic(fieldDeclaration.getModifiers())){
+            return true;
+          }
+        }
+        if (node instanceof ImportDeclaration) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   /** Create a new group to group given diff hunks */
-  private String createGroup(
-      Map<String, Group> groups,
-      Set<DiffNode> diffNodes,
-      Set<Integer> linkCategories,
-      GroupLabel intent) {
+
+  private String createGroup(Map<String, Group> groups, Set<DiffNode> diffNodes, Set<Integer> linkCategories){
+    return createGroup(groups, diffNodes, linkCategories, null);
+  }
+
+  private String createGroup(Map<String, Group> groups, Set<DiffNode> diffNodes, Set<Integer> linkCategories, GroupLabel intent) {
     if (!diffNodes.isEmpty()) {
       Integer maxInt = -1;
       for (String k : groups.keySet()) {
-        maxInt =
-            Integer.parseInt(k.substring(5)) > maxInt ? Integer.parseInt(k.substring(5)) : maxInt;
+        maxInt = Integer.parseInt(k.substring(5)) > maxInt ? Integer.parseInt(k.substring(5)) : maxInt;
       }
       String groupID = "group" + (maxInt + 1);
       List<String> diffHunkIndices = new ArrayList<>();
@@ -814,7 +897,10 @@ public class GroupGenerator {
         indexToGroupMap.put(node.getIndex(), groupID);
       }
       Group group = new Group(repoID, repoName, groupID, diffHunkIndices, diffHunkIDs, intent);
-      group.setCommitMsg(intent.toString().toLowerCase() + ": " + intent.label + " ...");
+
+      if (intent != null) {
+        group.setCommitMsg(intent.toString().toLowerCase() + ": " + intent.label + " ...");
+      }
 
       group.addLinkCategories(linkCategories);
 

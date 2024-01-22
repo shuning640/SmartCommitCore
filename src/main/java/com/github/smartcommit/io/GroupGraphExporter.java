@@ -23,7 +23,7 @@ public class GroupGraphExporter {
             // use helper classes to define how vertices should be rendered,
             // adhering to the DOT language restrictions
             ComponentNameProvider<Group> vertexIdProvider = Group::getGroupID;
-            ComponentNameProvider<Group> vertexLabelProvider = Group -> Group.getGroupID() + " " + Group.getDiffHunkIndices().toString();
+            ComponentNameProvider<Group> vertexLabelProvider = Group -> Group.getIntentLabel() + " " + Group.getGroupID() + " " + Group.getDiffHunkIndices().toString();
 //            ComponentNameProvider<Group> vertexLabelProvider = Group -> Group.getIntentLabel().toString();
             ComponentAttributeProvider<Group> vertexAttributeProvider = new GroupTypeProvider();
 
