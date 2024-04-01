@@ -147,6 +147,9 @@ public class GroupGenerator {
     Set<DiffHunk> others = new TreeSet<>(diffHunkComparator());
     if (processNonJava) {
       for (DiffFile diffFile : nonJavaDiffFiles) {
+        for(DiffHunk diffHunk: diffFile.getDiffHunks()){
+          diffHunk.setDiffHunkLabel(DiffHunkLabel.NONJAVA);
+        }
         others.addAll(diffFile.getDiffHunks());
       }
       createEdges(others, DiffEdgeType.OTHERS, 1.0);
@@ -802,7 +805,7 @@ public class GroupGenerator {
     }
     //todo detect ADD Feature
     if(isAddFeature(group)){
-      return GroupLabel.ADDFEATURE;
+      return GroupLabel.FEATURE;
     }
     if(isFeatureEnhancement(group)){
       return GroupLabel.FEATUREENHANCEMENT;

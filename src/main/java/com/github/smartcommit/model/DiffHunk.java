@@ -1,9 +1,6 @@
 package com.github.smartcommit.model;
 
-import com.github.smartcommit.model.constant.ChangeType;
-import com.github.smartcommit.model.constant.ContentType;
-import com.github.smartcommit.model.constant.FileType;
-import com.github.smartcommit.model.constant.Version;
+import com.github.smartcommit.model.constant.*;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.ArrayList;
@@ -25,6 +22,7 @@ public class DiffHunk {
   private transient List<Action> astActions = new ArrayList<>();
   private transient List<Action> refActions = new ArrayList<>();
   private String description = "";
+  private DiffHunkLabel diffHunkLabel;
 
   // lines from the raw output of git-diff (for patch generation)
   private List<String> rawDiffs = new ArrayList<>();
@@ -218,5 +216,13 @@ public class DiffHunk {
       generateDescription();
     }
     return description;
+  }
+
+  public DiffHunkLabel getDiffHunkLabel() {
+    return diffHunkLabel;
+  }
+
+  public void setDiffHunkLabel(DiffHunkLabel diffHunkLabel) {
+    this.diffHunkLabel = diffHunkLabel;
   }
 }
