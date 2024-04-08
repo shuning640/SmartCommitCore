@@ -58,7 +58,7 @@ public class GroupGenerator {
   private Graph<DiffNode, DiffEdge> diffGraph;
 
   // options
-  private boolean processNonJava = false;
+  private boolean processNonJava = true;
   private boolean detectRefs = false;
   private double minSimilarity = 0.618D;
   private int maxDistance = 0;
@@ -152,7 +152,7 @@ public class GroupGenerator {
         }
         others.addAll(diffFile.getDiffHunks());
       }
-      createEdges(others, DiffEdgeType.OTHERS, 1.0);
+      createEdges(others, DiffEdgeType.NONJAVA, 1.0);
     } else {
       Map<String, Set<DiffHunk>> diffHunksByFileType = new HashMap<>();
       for (DiffFile diffFile : nonJavaDiffFiles) {
@@ -203,23 +203,26 @@ public class GroupGenerator {
         continue;
       }
       //test
-//      if(detectTest(diffHunk)){
-//        testDiffHunks.add(diffHunk);
-//        continue;
-//      }
+      if(detectTest(diffHunk)){
+        testDiffHunks.add(diffHunk);
+        diffHunk.setDiffHunkLabel(DiffHunkLabel.TEST);
+        continue;
+      }
       //reformat
       if (detectReformatting(diffHunk)) {
         reformat.add(diffHunk);
+        diffHunk.setDiffHunkLabel(DiffHunkLabel.REFORMAT);
         continue;
       }
     }
 
-//    // cache all links from base/current graph as a top order
-//    Map<String, Set<String>> hardLinks =
-//            Utils.mergeTwoMaps(analyzeDefUse(baseGraph), analyzeDefUse(currentGraph));
-//    // remove testDiffHunks、 others和 reformat key&value in hardLinks
-//    removeEntriesRelatedToDiffHunks(hardLinks, testDiffHunks, reformat, others);
-//
+    // cache all links from base/current graph as a top order
+    Map<String, Set<String>> hardLinks =
+            Utils.mergeTwoMaps(analyzeDefUse(baseGraph), analyzeDefUse(currentGraph));
+    // remove testDiffHunks、 others和 reformat key&value in hardLinks
+    removeEntriesRelatedToDiffHunks(hardLinks, testDiffHunks, reformat, others);
+    Map<String, Set<String>> weakDepends = new HashMap<>();
+    splitWeakDepends(hardLinks, weakDepends);
 //    generalNodes = getGeneralNodes(hardLinks);
 
     for (int i = 0; i < diffHunks.size(); ++i) {
@@ -229,20 +232,26 @@ public class GroupGenerator {
       }
       // create groupEdge according to hard links (that depends on the current)
       // in topo order
-//      if (hardLinks.containsKey(diffHunk.getUniqueIndex())) {
-//        for (String target : hardLinks.get(diffHunk.getUniqueIndex())) {
-//          // target不能是test或者reformat
-//          if (!target.equals(diffHunk.getUniqueIndex()) && testDiffHunks.stream().noneMatch(hunk -> target.equals(hunk.getUniqueIndex()))
-//                  && reformat.stream().noneMatch(hunk -> target.equals(hunk.getUniqueIndex()))){
+      if (hardLinks.containsKey(diffHunk.getUniqueIndex())) {
+        for (String target : hardLinks.get(diffHunk.getUniqueIndex())) {
+          // target不能是test或者reformat
+          if (!target.equals(diffHunk.getUniqueIndex()) && testDiffHunks.stream().noneMatch(hunk -> target.equals(hunk.getUniqueIndex()))
+                  && reformat.stream().noneMatch(hunk -> target.equals(hunk.getUniqueIndex()))){
 //            if(generalNodes.contains(target)){
 //              createEdge(diffHunk.getUniqueIndex(), target, DiffEdgeType.WEAKDEPEND, 0.1);
 //              weakDependEdges.add(diffGraph.edgeSet().size());
 //            }else{
-//              createEdge(diffHunk.getUniqueIndex(), target, DiffEdgeType.DEPEND, 1.0);
+              createEdge(diffHunk.getUniqueIndex(), target, DiffEdgeType.DEPEND, 1.0);
 //            }
-//          }
-//        }
-//      }
+          }
+        }
+      }
+      if(weakDepends.containsKey(diffHunk.getUniqueIndex())){
+        for (String target : weakDepends.get(diffHunk.getUniqueIndex())) {
+          createEdge(diffHunk.getUniqueIndex(), target, DiffEdgeType.WEAKDEPEND, 0.01);
+          weakDependEdges.add(diffGraph.edgeSet().size());
+        }
+      }
 
       // estimate soft links (every two diff hunks)
       for (int j = i + 1; j < diffHunks.size(); j++) {
@@ -275,23 +284,24 @@ public class GroupGenerator {
                         DiffEdgeType.MOVING,
                         1.0);
             }
-          } else {
-          // test and tested classes (in case no explicit hard link captured)
-          // condition: file name differs only with ending "Test"
-            if (diffHunk.getFileType().equals(FileType.JAVA)
-                    && diffHunk1.getFileType().equals(FileType.JAVA)) {
-              Pair<String, String> pair = detectTesting(diffHunk, diffHunk1);
-              if (pair != null) {
-                createEdge(pair.getLeft(), pair.getRight(), DiffEdgeType.TEST, 1.0);
-              }
-            }
           }
+//          else {
+//          // test and tested classes (in case no explicit hard link captured)
+//          // condition: file name differs only with ending "Test"
+//            if (diffHunk.getFileType().equals(FileType.JAVA)
+//                    && diffHunk1.getFileType().equals(FileType.JAVA)) {
+//              Pair<String, String> pair = detectTesting(diffHunk, diffHunk1);
+//              if (pair != null) {
+//                createEdge(pair.getLeft(), pair.getRight(), DiffEdgeType.TEST, 1.0);
+//              }
+//            }
+//          }
         }
         // TODO: cross-lang dependency
         // detect references between configs and java
       }
     }
-//    createEdges(testDiffHunks, DiffEdgeType.TEST, 1.0);
+    createEdges(testDiffHunks, DiffEdgeType.TEST, 1.0);
     createEdges(reformat, DiffEdgeType.REFORMAT, 1.0);
     Stream.of(reformat).flatMap(Set::stream).forEach(refDiffHunks::remove);
     if (!refDiffHunks.isEmpty()) {
@@ -323,6 +333,69 @@ public class GroupGenerator {
     }
     return DiffGraphExporter.exportAsDotWithType(diffGraph);
   }
+
+  private void splitWeakDepends(Map<String, Set<String>> hardLinks, Map<String, Set<String>> weakDependEdges) {
+    List<String> visited = new ArrayList<>();
+    List<String> toRemoveKeys = new ArrayList<>(); // 用于保存需要删除的key
+    for (Map.Entry<String, Set<String>> entry : hardLinks.entrySet()) {
+      String key = entry.getKey();
+      Set<String> value = entry.getValue();
+      Set<String> toRemove = new HashSet<>(); // 用于保存需要从 hardLinks 中删除的元素
+      for (String v : value) {
+        if (visited.contains(v)) {
+          continue;
+        }
+        if (isWeakDepends(v)) {
+          weakDependEdges.putIfAbsent(key, new HashSet<>());
+          weakDependEdges.get(key).add(v);
+          toRemove.add(v); // 将需要删除的元素添加到 toRemove 集合中
+        }
+        visited.add(v);
+      }
+      // 从 hardLinks 中删除需要删除的元素
+      value.removeAll(toRemove);
+      // 如果 value 为空，将 key 添加到需要删除的 key 集合中
+      if (value.isEmpty()) {
+        toRemoveKeys.add(key);
+      }
+    }
+    // 删除所有需要删除的 key
+    for (String keyToRemove : toRemoveKeys) {
+      hardLinks.remove(keyToRemove);
+    }
+  }
+
+  private boolean isWeakDepends(String index){
+    DiffHunk keyDiffHunk = getDiffHunkByIndex(index);
+    List<ASTNode> baseNodes = keyDiffHunk.getBaseHunk().getCoveredNodes();
+    List<ASTNode> currentNodes = keyDiffHunk.getCurrentHunk().getCoveredNodes();
+    for(ASTNode baseNode : baseNodes){
+      for(ASTNode currentNode : currentNodes){
+        if(compareASTNodes(baseNode, currentNode)){
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  private boolean compareASTNodes(ASTNode oldNode, ASTNode newNode) {
+    if (oldNode.getNodeType() != newNode.getNodeType() || oldNode.getNodeType() != ASTNode.METHOD_DECLARATION) {
+      return false;
+    }
+    return compareMethodDeclarations((MethodDeclaration) oldNode, (MethodDeclaration) newNode);
+  }
+
+  private boolean compareMethodDeclarations(MethodDeclaration oldMethod, MethodDeclaration newMethod) {
+    if (!oldMethod.getName().getIdentifier().equals(newMethod.getName().getIdentifier())
+    || !oldMethod.parameters().equals(newMethod.parameters())
+    || !oldMethod.getReturnType2().toString().equals(newMethod.getReturnType2().toString())
+    || !oldMethod.modifiers().equals(newMethod.modifiers())) {
+      return false;// 语法改变的强连接
+    }
+    return true;// 语法不变 语义改变的弱连接
+  }
+
 
   private Map<String, Set<String>> analyzeDefUse(Graph<Node, Edge> graph) {
     Map<String, Set<String>> defUseLinks = new HashMap<>();
@@ -518,7 +591,7 @@ public class GroupGenerator {
     }
 
     for(Map.Entry<String, Group> group : result.entrySet()){
-      GroupLabel intent = getIntent(group.getValue(), edgeList);
+      GroupLabel intent = getIntent(group.getValue());
       group.getValue().setIntentLabel(intent);
       group.getValue().setCommitMsg(intent.toString().toLowerCase() + ": " + intent.label + " ...");
     }
@@ -680,75 +753,6 @@ public class GroupGenerator {
     return result;
   }
 
-  /**
-   * Simply decompose from connected components
-   *
-   * @deprecated
-   * @return
-   */
-  public Map<String, Group> decomposeByConnectivity() {
-    Map<String, Group> result = new LinkedHashMap<>();
-    Set<DiffNode> individuals = new LinkedHashSet<>();
-    Map<String, String> idToIndexMap = new HashMap<>();
-    ConnectivityInspector inspector = new ConnectivityInspector(diffGraph);
-    List<Set<DiffNode>> connectedSets = inspector.connectedSets();
-    for (Set<DiffNode> diffNodesSet : connectedSets) {
-      if (diffNodesSet.size() == 1) {
-        // individual
-        diffNodesSet.forEach(
-            diffNode -> {
-              individuals.add(diffNode);
-              idToIndexMap.put(diffNode.getUUID(), diffNode.getIndex());
-            });
-      } else if (diffNodesSet.size() > 1) {
-        Set<DiffNode> diffNodes = new LinkedHashSet<>();
-        // sort and deduplicate
-        diffNodesSet =
-            diffNodesSet.stream()
-                .sorted(diffNodeComparator())
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-
-        List<DiffEdgeType> edgeTypes = new ArrayList<>();
-        for (DiffNode diffNode : diffNodesSet) {
-          diffNodes.add(diffNode);
-          diffGraph
-              .outgoingEdgesOf(diffNode)
-              .forEach(diffEdge -> edgeTypes.add(diffEdge.getType()));
-        }
-        // get the most frequent groupEdge type as the group label
-        createGroup(result, diffNodes, new HashSet<>(), getIntentFromEdges(edgeTypes));
-      }
-    }
-
-    assignIndividuals(result, individuals);
-    // group individuals with file type centrality
-    if (individuals.size() <= 3) {
-      for (DiffNode node : individuals) {
-        createGroup(result, new HashSet<>(Arrays.asList(node)), new HashSet<>(), GroupLabel.OTHER);
-      }
-    } else {
-      Map<String, Set<DiffNode>> groupByFileType = new HashMap<>();
-      for (DiffNode node : individuals) {
-        DiffFile file =
-            diffFiles.stream()
-                .filter(diffFile -> diffFile.getIndex().equals(node.getFileIndex()))
-                .findFirst()
-                .get();
-        String fileType =
-            file.getBaseRelativePath().isEmpty()
-                ? Utils.getFileExtension(file.getBaseRelativePath())
-                : Utils.getFileExtension(file.getCurrentRelativePath());
-        if (!groupByFileType.containsKey(fileType)) {
-          groupByFileType.put(fileType, new HashSet<>());
-        }
-        groupByFileType.get(fileType).add(node);
-      }
-      for (Map.Entry<String, Set<DiffNode>> entry : groupByFileType.entrySet()) {
-        createGroup(result, entry.getValue(), new HashSet<>(), GroupLabel.OTHER);
-      }
-    }
-    return result;
-  }
 
   private GroupLabel getIntentFromEdges(List<DiffEdgeType> edgeTypes) {
     if(edgeTypes.size() == 0) {
@@ -783,40 +787,74 @@ public class GroupGenerator {
 //      case CLOSE:
 //      case DEPEND:
 //      default:
-//        // TODO: only consider groups including new declaration nodes as new feature
-//        return GroupLabel.FEATURE;
-//        // TODO: consider groups including simply add test cases/methods changes as test
-//        // GroupLabel.TEST
+//        return null;
     }
+  }
+
+  private GroupLabel getIntentFromDiffHunk(List<String> diffHunkIndices) {
+    for (String index : diffHunkIndices) {
+      DiffHunkLabel diffHunkLabel = getDiffHunkByIndex(index).getDiffHunkLabel();
+      if(diffHunkLabel == null){
+        continue;
+      }
+      if(diffHunkLabel.equals(DiffHunkLabel.NONJAVA)) {
+        return GroupLabel.NONJAVA;
+      }else if(diffHunkLabel.equals(DiffHunkLabel.REFACTOR)) {
+        return GroupLabel.REFACTOR;
+      }else if(diffHunkLabel.equals(DiffHunkLabel.REFORMAT)) {
+        return GroupLabel.REFORMAT;
+      }else if(diffHunkLabel.equals(DiffHunkLabel.TEST)) {
+        return GroupLabel.TEST;
+      }
+    }
+    return null;
   }
 
   private GroupLabel getIntent(Group group, List<DiffEdge> edgeList) {
     List<DiffEdgeType> edgeTypes = new ArrayList<>();
+    List<String> diffHunkIndices = group.getDiffHunkIndices();
     for(DiffEdge edge : edgeList){
       DiffNode source = diffGraph.getEdgeSource(edge);
       DiffNode target = diffGraph.getEdgeTarget(edge);
-      if(group.getDiffHunkIndices().contains(source.getIndex()) || group.getDiffHunkIndices().contains(target.getIndex())){
+      if(diffHunkIndices.contains(source.getIndex()) || diffHunkIndices.contains(target.getIndex())){
         edgeTypes.add(edge.getType());
       }
     }
-    GroupLabel res = getIntentFromEdges(edgeTypes);
+    GroupLabel diffHunkRes = getIntentFromDiffHunk(diffHunkIndices);
+    GroupLabel res = diffHunkRes != null ? diffHunkRes : getIntentFromEdges(edgeTypes);
     if(res != null){
       return res;
     }
-    //todo detect ADD Feature
-    if(isAddFeature(group)){
+    // detect ADD Feature
+    if(isAddFeature(diffHunkIndices)){
       return GroupLabel.FEATURE;
     }
-    if(isFeatureEnhancement(group)){
+    if(isFeatureEnhancement(diffHunkIndices)){
       return GroupLabel.FEATUREENHANCEMENT;
     }
-    return GroupLabel.FIX;
+    return GroupLabel.OTHER;
   }
 
-  private boolean isFeatureEnhancement(Group group){
+  private GroupLabel getIntent(Group group) {
+    List<String> diffHunkIndices = group.getDiffHunkIndices();
+    GroupLabel diffHunkRes = getIntentFromDiffHunk(diffHunkIndices);
+    if(diffHunkRes != null){
+      return diffHunkRes;
+    }
+    // detect ADD Feature
+    if(isAddFeature(diffHunkIndices)){
+      return GroupLabel.FEATURE;
+    }
+    if(isFeatureEnhancement(diffHunkIndices)){
+      return GroupLabel.FEATUREENHANCEMENT;
+    }
+    return GroupLabel.OTHER;
+  }
+
+  private boolean isFeatureEnhancement(List<String> diffHunkIndices){
     int totalAdd = 0;
     int totalDelete = 0;
-    for (String index : group.getDiffHunkIndices()){
+    for (String index : diffHunkIndices){
       DiffHunk hunk = getDiffHunkByIndex(index);
       int delLen = (int) hunk.getBaseHunk().getCodeSnippet().stream().filter(str -> !str.isEmpty()).count();
       int addLen = (int) hunk.getCurrentHunk().getCodeSnippet().stream().filter(str -> !str.isEmpty()).count();
@@ -830,8 +868,8 @@ public class GroupGenerator {
     return totalAdd > 20 && (totalDelete == 0 || totalAdd / (double) totalDelete > 3);
   }
 
-  private boolean isAddFeature(Group group){
-    for (String index : group.getDiffHunkIndices()) {
+  private boolean isAddFeature(List<String> diffHunkIndices){
+    for (String index : diffHunkIndices) {
       DiffHunk hunk = getDiffHunkByIndex(index);
       if(detectNewFeature(hunk)){
         return true;
@@ -1026,7 +1064,7 @@ public class GroupGenerator {
     return null;
   }
 
-  private static void removeEntriesRelatedToDiffHunks(Map<String, Set<String>> hardLinks, Set<DiffHunk>... diffHunks) {
+  private void removeEntriesRelatedToDiffHunks(Map<String, Set<String>> hardLinks, Set<DiffHunk>... diffHunks) {
     Set<String> keysToRemove = new HashSet<>();
     for (Set<DiffHunk> diffHunkSet : diffHunks) {
       for (DiffHunk diffHunk : diffHunkSet) {
@@ -1038,6 +1076,7 @@ public class GroupGenerator {
     // 移除涉及的键
     keysToRemove.forEach(hardLinks::remove);
   }
+
 
   private Set<String> getGeneralNodes(Map<String, Set<String>> hardLinks){
     Set<String> generalNodes = new HashSet<>();
@@ -1220,6 +1259,7 @@ public class GroupGenerator {
           if (diffHunkOpt.size() > 0) {
             for(DiffHunk diffHunk : diffHunkOpt) {
               diffHunk.addRefAction(Utils.convertRefactoringToAction(refactoring));
+              diffHunk.setDiffHunkLabel(DiffHunkLabel.REFACTOR);
               refDiffHunks.add(diffHunk);
             }
           }
@@ -1229,6 +1269,7 @@ public class GroupGenerator {
           if (diffHunkOpt.size() > 0) {
             for(DiffHunk diffHunk : diffHunkOpt) {
               diffHunk.addRefAction(Utils.convertRefactoringToAction(refactoring));
+              diffHunk.setDiffHunkLabel(DiffHunkLabel.REFACTOR);
               refDiffHunks.add(diffHunk);
             }
           }

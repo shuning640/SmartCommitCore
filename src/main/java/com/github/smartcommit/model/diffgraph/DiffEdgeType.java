@@ -21,10 +21,10 @@ public enum DiffEdgeType {
   TEST(false, "test", 3),
   /** logical * */
 
+  NONJAVA(false, "non-java", 4),
   DOC(false, "doc", 4),
   CONFIG(false, "config", 4),
   RESOURCE(false, "resource", 4),
-  NONJAVA(false, "non-java", 4),
   OTHERS(false, "others", 4);
 
   Boolean fixed;

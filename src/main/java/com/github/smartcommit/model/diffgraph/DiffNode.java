@@ -18,7 +18,7 @@ public class DiffNode {
   // in the order of: hunkNodeID, memberNodeID, classNodeID, packageNodeID
   private Map<String, Integer> baseHierarchy;
   private Map<String, Integer> currentHierarchy;
-
+  private String syntaxDiff;
   public DiffNode(Integer id, String index, String uuid) {
     this.id = id;
     this.index = index;
@@ -64,5 +64,13 @@ public class DiffNode {
 
   public String getUUID() {
     return uuid;
+  }
+
+  public String getSyntaxDiff() {
+    return syntaxDiff;
+  }
+
+  public void setSyntaxDiff(String syntaxDiff) {
+    this.syntaxDiff = syntaxDiff;
   }
 }
