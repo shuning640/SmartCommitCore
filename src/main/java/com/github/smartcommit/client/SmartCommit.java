@@ -600,17 +600,49 @@ public class SmartCommit {
     Map<String, Integer> passGroups = new HashMap<>();
     Map<String, Integer> ceGroups = new HashMap<>();
     Set<HunkEntity> allHunks = new HashSet<>();
-    revertGroups(groups,smartCommit,ric, passGroups, ceGroups, allHunks);
+    String groupLabel = revertGroups(allHunks, groups,smartCommit,ric, passGroups, ceGroups);
     int hunkSum = allHunks.size();
     int minValue = 0;
     if(!passGroups.isEmpty()){
       minValue = Collections.min(passGroups.values());
     }
     System.out.println(regressionId +  ": GroupSize" + groups.size() + " HunkSum" + hunkSum + " PassGroupNum" + passGroups.size() + " MinHunkNum" + minValue);
-    MysqlManager.insertGroupRevertResult("group_revert_result_v8", regressionId, groups.size(), hunkSum, passGroups.size(), minValue, ceGroups.size());
+    MysqlManager.insertGroupRevertResult("group_revert_result", regressionId, groups.size(), hunkSum, passGroups.size(), minValue, ceGroups.size(), groupLabel);
 
-    System.out.println(regressionId +  ": GroupSize" + groups.size() + " HunkSum" + hunkSum + " PassGroupNum" + passGroups.size() + " MinHunkNum" + minValue);
-    MysqlManager.insertGroupRevertResult("group_revert_result_v9", regressionId, groups.size(), hunkSum, passGroups.size(), minValue, ceGroups.size());
+
+  }
+
+  public static String revertGroups(Set<HunkEntity> allHunks, Map<String, Group> groups, SmartCommit smartCommit, Revision ric,
+                                  Map<String, Integer> passGroups, Map<String, Integer> ceGroups
+                                  ) throws Exception {
+    String minGroupLabel = "";
+
+    for(Map.Entry<String, Group> entry: groups.entrySet()){
+      List<HunkEntity> hunks = smartCommit.group2Hunks(entry.getValue());
+      hunks.removeIf(hunkEntity -> hunkEntity.getNewPath().contains("test") || hunkEntity.getOldPath().contains("test"));
+      if(hunks.size() == 0){
+        continue;
+      }
+      String path = ric.getLocalCodeDir().toString().replace("_ric","_tmp");
+      Utils.copyDirToTarget(ric.getLocalCodeDir().toString(),path);
+      Revert.revert(path,hunks);
+      Executor executor = new Executor();
+      executor.setDirectory(new File(path));
+      String execStatement = System.getProperty("user.home").contains("lsn") ?
+              "chmod u+x build.sh; chmod u+x test.sh; ./build.sh; ./test.sh;" :
+              "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64; chmod u+x build.sh; chmod u+x test.sh; ./build.sh; ./test.sh; ";
+      String result = executor.exec(execStatement).trim();
+      System.out.println(entry.getKey() + ": Hunk size " + hunks.size() + "; Revert result " + result+ "; Group label " + entry.getValue().getIntentLabel());
+      allHunks.addAll(hunks);
+      if(result.contains("PASS")){
+        passGroups.put(entry.getKey(),hunks.size());
+        minGroupLabel = entry.getValue().getIntentLabel().name();
+      }
+      else if(result.contains("CE")){
+        ceGroups.put(entry.getKey(),hunks.size());
+      }
+    }
+    return minGroupLabel;
   }
 
   public static void revertGroups(Map<String, Group> groups, SmartCommit smartCommit, Revision ric,
@@ -645,7 +677,7 @@ public class SmartCommit {
 
   public static void main(String [] args) throws Exception {
 //    String sql = "select * from regressions_all where is_clean=1 and is_dirty=0 and id not in (select regression_id from group_revert_result);\n";
-    String sql = "select * from regressions_all where id = 111";
+    String sql = "select * from regressions_all where id > 60 and id < 150";
     List<Regression> regressionList = MysqlManager.selectCleanRegressions(sql);
     for (int i = 0; i < regressionList.size(); i++) {
       try{

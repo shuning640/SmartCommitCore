@@ -5,7 +5,7 @@ public enum GroupLabel {
   REFORMAT("Reformat code"), // blank/special character changes
   TEST("Modify test cases"),
   REFACTOR("Refactor code structure"), // refactoring
-  FEATURE("Add or modify feature"), // new feature
+  FEATURE("Add feature"), // new feature
   FEATUREENHANCEMENT("Feature Enhancement"), // feature enhancement
   OTHER("Other changes"), // trivial changes
 

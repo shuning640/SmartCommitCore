@@ -10,9 +10,9 @@ public final class Config {
 //  public static final String REPO_PATH = System.getProperty("user.home") + File.separator + "dd" + File.separator + "ddj_space" + File.separator + "meta_projects" + File.separator;//95服务器
   public static final String REPO_PATH = System.getProperty("user.home").contains("lsn") ?
         (System.getProperty("user.home") + File.separator + "ddj_space" + File.separator + "meta_projects" + File.separator) :
-        (System.getProperty("user.home") + File.separator + "dd" + File.separator + "ddj_space" + File.separator + "meta_projects" + File.separator);
-  public static final String TEMP_DIR = System.getProperty("user.home") + File.separator + "smartcommit" + File.separator + "temp" + File.separator;
-  public static final String CACHE_DIR = System.getProperty("user.home") + File.separator + "smartcommit" + File.separator + "cache";
+        ( System.getProperty("user.home") + File.separator + "meta_projects" + File.separator);
+  public static final String TEMP_DIR = System.getProperty("user.home") + File.separator + "miner" +File.separator + "smartcommit" + File.separator + "temp" + File.separator;
+  public static final String CACHE_DIR = System.getProperty("user.home") + File.separator + "miner" +File.separator + "smartcommit" + File.separator + "cache";
   // in working tree
   //  public static final String REPO_NAME = "SmartCommitCore";
   //  public static final String REPO_PATH = "~/coding/dev" + File.separator + REPO_NAME;
@@ -32,4 +32,16 @@ public final class Config {
           "=true&characterEncoding=UTF8";
   public final static String NAME = "root";
   public final static String PWD = "110120";
+
+  public final static String URL_99 = "jdbc:mysql://10.176.34" +
+          ".99:3306/regression?useSSL=false&allowPublicKeyRetrieval" +
+          "=true&characterEncoding=UTF8";
+  public final static String NAME_99 = "root";
+  public final static String PWD_99 = "110120";
+
+  public final static String URL_95 = "jdbc:mysql://10.176.34" +
+          ".95:3306/regression?useSSL=false&allowPublicKeyRetrieval" +
+          "=true&characterEncoding=UTF8";
+  public final static String NAME_95 = "root";
+  public final static String PWD_95 = "1235";
 }

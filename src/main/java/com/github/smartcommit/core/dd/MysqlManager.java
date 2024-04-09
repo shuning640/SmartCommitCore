@@ -30,6 +30,19 @@ public class MysqlManager {
 
     }
 
+    private static void getConn(String database) throws Exception {
+        if (conn != null) {
+            return;
+        }
+        Class.forName(DRIVER);
+        if(database.equals("95")){
+            conn = DriverManager.getConnection(URL_95, NAME_95, PWD_95);
+        }else if(database.equals("99")){
+            conn = DriverManager.getConnection(URL_99, NAME_99, PWD_99);
+        }
+
+    }
+
     public static void getStatement() throws Exception {
         if (conn == null) {
             getConn();
@@ -144,6 +157,31 @@ public class MysqlManager {
             }
         }
     }
+    public static void insertGroupRevertResult(String tableName, String regressionId, int groupsNum,int hunkNum, int passNum, int resultHunkNum, int ceNum, String groupLabel) throws Exception {
+        if (conn == null) {
+            getConn("95");
+        }
+        PreparedStatement pstmt = null;
+        try {
+            pstmt =conn.prepareStatement("insert into " + tableName+ " (regression_id,group_num,hunk_num,pass_num,result_hunk_num,ce_num, group_label) " +
+                    "values(?,?,?,?,?,?,?)");
+            pstmt.setInt(1, Integer.parseInt(regressionId));
+            pstmt.setInt(2,groupsNum);
+            pstmt.setInt(3,hunkNum);
+            pstmt.setInt(4,passNum);
+            pstmt.setInt(5,resultHunkNum);
+            pstmt.setInt(6,ceNum);
+            pstmt.setString(7,groupLabel);
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }finally {
+            if (pstmt!=null){
+                pstmt.close();
+            }
+        }
+    }
+
     public static void  insertDD(String uuid,String revision,String cc_ddmin,String cc_ddj) throws Exception {
         if (conn == null) {
             getConn();

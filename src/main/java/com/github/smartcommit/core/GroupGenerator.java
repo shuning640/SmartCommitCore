@@ -223,11 +223,14 @@ public class GroupGenerator {
     removeEntriesRelatedToDiffHunks(hardLinks, testDiffHunks, reformat, others);
     Map<String, Set<String>> weakDepends = new HashMap<>();
     splitWeakDepends(hardLinks, weakDepends);
+    if(!weakDepends.isEmpty()){
+      System.out.println("weakDepends: " + weakDepends);
+    }
 //    generalNodes = getGeneralNodes(hardLinks);
 
     for (int i = 0; i < diffHunks.size(); ++i) {
       DiffHunk diffHunk = diffHunks.get(i);
-      if(reformat.contains(diffHunk)){
+      if(diffHunk.getDiffHunkLabel().equals(DiffHunkLabel.NONJAVA) || diffHunk.getDiffHunkLabel().equals(DiffHunkLabel.TEST) || diffHunk.getDiffHunkLabel().equals(DiffHunkLabel.REFORMAT)){
         continue;
       }
       // create groupEdge according to hard links (that depends on the current)
@@ -357,6 +360,8 @@ public class GroupGenerator {
       // 如果 value 为空，将 key 添加到需要删除的 key 集合中
       if (value.isEmpty()) {
         toRemoveKeys.add(key);
+      }else{
+        hardLinks.put(key, value);
       }
     }
     // 删除所有需要删除的 key
@@ -388,12 +393,63 @@ public class GroupGenerator {
 
   private boolean compareMethodDeclarations(MethodDeclaration oldMethod, MethodDeclaration newMethod) {
     if (!oldMethod.getName().getIdentifier().equals(newMethod.getName().getIdentifier())
-    || !oldMethod.parameters().equals(newMethod.parameters())
-    || !oldMethod.getReturnType2().toString().equals(newMethod.getReturnType2().toString())
-    || !oldMethod.modifiers().equals(newMethod.modifiers())) {
-      return false;// 语法改变的强连接
+            || !compareParameters(oldMethod.parameters(), newMethod.parameters())
+            || !compareReturnTypes(oldMethod.getReturnType2(), newMethod.getReturnType2())
+            || !compareModifiers(oldMethod.modifiers(), newMethod.modifiers())
+            || !compareThrownExceptions(oldMethod.thrownExceptionTypes(), newMethod.thrownExceptionTypes())) {
+        return false;// 语法改变的强连接
     }
     return true;// 语法不变 语义改变的弱连接
+  }
+
+  private boolean compareReturnTypes(Type oldReturnType, Type newReturnType) {
+    if (oldReturnType == null && newReturnType == null) {
+      return true;
+    }
+    if (oldReturnType == null || newReturnType == null) {
+      return false;
+    }
+    return oldReturnType.toString().equals(newReturnType.toString());
+  }
+
+  private boolean compareParameters(List<SingleVariableDeclaration> oldParams, List<SingleVariableDeclaration> newParams) {
+    if (oldParams.size() != newParams.size()) {
+      return false;
+    }
+    for (int i = 0; i < oldParams.size(); i++) {
+      if (!oldParams.get(i).getType().toString().equals(newParams.get(i).getType().toString())) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private boolean compareModifiers(List<IExtendedModifier> oldModifiers, List<IExtendedModifier> newModifiers) {
+    if (oldModifiers.size() != newModifiers.size()) {
+      return false;
+    }
+    // Convert modifiers to strings for comparison
+    List<String> oldModifierStrings = oldModifiers.stream()
+            .map(modifier -> modifier.toString())
+            .collect(Collectors.toList());
+    List<String> newModifierStrings = newModifiers.stream()
+            .map(modifier -> modifier.toString())
+            .collect(Collectors.toList());
+    Collections.sort(oldModifierStrings);
+    Collections.sort(newModifierStrings);
+    return oldModifierStrings.equals(newModifierStrings);
+  }
+
+  private boolean compareThrownExceptions(List<Type> oldExceptions, List<Type> newExceptions) {
+    if (oldExceptions.size() != newExceptions.size()) {
+      return false;
+    }
+    for (int i = 0; i < oldExceptions.size(); i++) {
+      if (!oldExceptions.get(i).toString().equals(newExceptions.get(i).toString())) {
+        return false;
+      }
+    }
+    return true;
   }
 
 

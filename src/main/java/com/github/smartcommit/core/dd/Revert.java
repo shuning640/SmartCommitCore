@@ -1,13 +1,10 @@
 package com.github.smartcommit.core.dd;
 
-import com.github.smartcommit.client.Config;
 import com.github.smartcommit.client.SmartCommit;
-import com.github.smartcommit.model.Group;
 import com.github.smartcommit.model.HunkEntity;
 import com.github.smartcommit.model.Regression;
 import com.github.smartcommit.model.Revision;
 import com.github.smartcommit.util.Executor;
-import com.github.smartcommit.util.GitUtils;
 import com.github.smartcommit.util.Utils;
 import org.apache.commons.io.FileUtils;
 
@@ -26,9 +23,9 @@ public class Revert {
     static SourceCodeManager sourceCodeManager = new SourceCodeManager();
 
     public static void main(String [] args) throws Exception {
-        String tableName = "group_revert_result_v9";
-        String sql = "select * from regressions_all where is_clean=1 and is_dirty=0 and id not in (select regression_id from " + tableName + ");\n";
-//        String sql = "select * from regressions_all where id =1556";
+        String tableName = "group_revert_result";
+//        String sql = "select * from regressions_all where is_clean=1 and is_dirty=0 and id not in (select regression_id from " + tableName + ");\n";
+        String sql = "select * from regressions_all where is_clean=1 and is_dirty=0;\n";
         List<Regression> regressionList = MysqlManager.selectCleanRegressions(sql);
         PrintStream o = new PrintStream(new File("log_" + tableName +".txt"));
         System.setOut(o);
