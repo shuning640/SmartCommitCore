@@ -11,8 +11,12 @@ public final class Config {
   public static final String REPO_PATH = System.getProperty("user.home").contains("lsn") ?
         (System.getProperty("user.home") + File.separator + "ddj_space" + File.separator + "meta_projects" + File.separator) :
         ( System.getProperty("user.home") + File.separator + "meta_projects" + File.separator);
-  public static final String TEMP_DIR = System.getProperty("user.home") + File.separator + "miner" +File.separator + "smartcommit" + File.separator + "temp" + File.separator;
-  public static final String CACHE_DIR = System.getProperty("user.home") + File.separator + "miner" +File.separator + "smartcommit" + File.separator + "cache";
+  public static final String TEMP_DIR =  System.getProperty("user.home").contains("lsn") ?
+          System.getProperty("user.home") + File.separator + "smartcommit" + File.separator + "temp" + File.separator :
+          System.getProperty("user.home") + File.separator + "miner" +File.separator + "smartcommit" + File.separator + "temp" + File.separator;
+  public static final String CACHE_DIR = System.getProperty("user.home").contains("lsn") ?
+          System.getProperty("user.home") + File.separator + "smartcommit" + File.separator + "cache":
+          System.getProperty("user.home") + File.separator + "miner" +File.separator + "smartcommit" + File.separator + "cache";
   // in working tree
   //  public static final String REPO_NAME = "SmartCommitCore";
   //  public static final String REPO_PATH = "~/coding/dev" + File.separator + REPO_NAME;

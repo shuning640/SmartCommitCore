@@ -6,7 +6,7 @@ public enum GroupLabel {
   TEST("Modify test cases"),
   REFACTOR("Refactor code structure"), // refactoring
   FEATURE("Add feature"), // new feature
-  FEATUREENHANCEMENT("Feature Enhancement"), // feature enhancement
+  FEATUREENHANCE("Feature Enhancement"), // feature enhancement
   OTHER("Other changes"), // trivial changes
 
   FIX("Fix bug"), // fix bugs

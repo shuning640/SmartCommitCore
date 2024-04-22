@@ -157,14 +157,14 @@ public class MysqlManager {
             }
         }
     }
-    public static void insertGroupRevertResult(String tableName, String regressionId, int groupsNum,int hunkNum, int passNum, int resultHunkNum, int ceNum, String groupLabel) throws Exception {
+    public static void insertGroupRevertResult(String tableName, String regressionId, int groupsNum,int hunkNum, int passNum, int resultHunkNum, int ceNum, String groupLabel, String allGroupLabel) throws Exception {
         if (conn == null) {
             getConn("95");
         }
         PreparedStatement pstmt = null;
         try {
-            pstmt =conn.prepareStatement("insert into " + tableName+ " (regression_id,group_num,hunk_num,pass_num,result_hunk_num,ce_num, group_label) " +
-                    "values(?,?,?,?,?,?,?)");
+            pstmt =conn.prepareStatement("insert into " + tableName+ " (regression_id,group_num,hunk_num,pass_num,result_hunk_num,ce_num, pass_group_label, all_group_label) " +
+                    "values(?,?,?,?,?,?,?,?)");
             pstmt.setInt(1, Integer.parseInt(regressionId));
             pstmt.setInt(2,groupsNum);
             pstmt.setInt(3,hunkNum);
@@ -172,6 +172,7 @@ public class MysqlManager {
             pstmt.setInt(5,resultHunkNum);
             pstmt.setInt(6,ceNum);
             pstmt.setString(7,groupLabel);
+            pstmt.setString(8,allGroupLabel);
             pstmt.executeUpdate();
         } catch (SQLException e) {
             e.printStackTrace();

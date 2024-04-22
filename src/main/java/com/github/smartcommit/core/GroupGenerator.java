@@ -145,11 +145,13 @@ public class GroupGenerator {
             .filter(diffFile -> !diffFile.getFileType().equals(FileType.JAVA))
             .collect(Collectors.toList());
     Set<DiffHunk> others = new TreeSet<>(diffHunkComparator());
+    for (DiffFile diffFile : nonJavaDiffFiles) {
+      for (DiffHunk diffHunk : diffFile.getDiffHunks()) {
+        diffHunk.setDiffHunkLabel(DiffHunkLabel.NONJAVA);
+      }
+    }
     if (processNonJava) {
       for (DiffFile diffFile : nonJavaDiffFiles) {
-        for(DiffHunk diffHunk: diffFile.getDiffHunks()){
-          diffHunk.setDiffHunkLabel(DiffHunkLabel.NONJAVA);
-        }
         others.addAll(diffFile.getDiffHunks());
       }
       createEdges(others, DiffEdgeType.NONJAVA, 1.0);
@@ -226,11 +228,12 @@ public class GroupGenerator {
     if(!weakDepends.isEmpty()){
       System.out.println("weakDepends: " + weakDepends);
     }
-//    generalNodes = getGeneralNodes(hardLinks);
+    generalNodes = getGeneralNodes(hardLinks);
 
     for (int i = 0; i < diffHunks.size(); ++i) {
       DiffHunk diffHunk = diffHunks.get(i);
-      if(diffHunk.getDiffHunkLabel().equals(DiffHunkLabel.NONJAVA) || diffHunk.getDiffHunkLabel().equals(DiffHunkLabel.TEST) || diffHunk.getDiffHunkLabel().equals(DiffHunkLabel.REFORMAT)){
+      DiffHunkLabel label = diffHunk.getDiffHunkLabel();
+      if(label != null && (label.equals(DiffHunkLabel.NONJAVA) || label.equals(DiffHunkLabel.TEST) || label.equals(DiffHunkLabel.REFORMAT))){
         continue;
       }
       // create groupEdge according to hard links (that depends on the current)
@@ -385,7 +388,7 @@ public class GroupGenerator {
   }
 
   private boolean compareASTNodes(ASTNode oldNode, ASTNode newNode) {
-    if (oldNode.getNodeType() != newNode.getNodeType() || oldNode.getNodeType() != ASTNode.METHOD_DECLARATION) {
+    if (oldNode == null || newNode == null || oldNode.getNodeType() != newNode.getNodeType() || oldNode.getNodeType() != ASTNode.METHOD_DECLARATION) {
       return false;
     }
     return compareMethodDeclarations((MethodDeclaration) oldNode, (MethodDeclaration) newNode);
@@ -886,7 +889,7 @@ public class GroupGenerator {
       return GroupLabel.FEATURE;
     }
     if(isFeatureEnhancement(diffHunkIndices)){
-      return GroupLabel.FEATUREENHANCEMENT;
+      return GroupLabel.FEATUREENHANCE;
     }
     return GroupLabel.OTHER;
   }
@@ -902,7 +905,7 @@ public class GroupGenerator {
       return GroupLabel.FEATURE;
     }
     if(isFeatureEnhancement(diffHunkIndices)){
-      return GroupLabel.FEATUREENHANCEMENT;
+      return GroupLabel.FEATUREENHANCE;
     }
     return GroupLabel.OTHER;
   }
@@ -914,14 +917,16 @@ public class GroupGenerator {
       DiffHunk hunk = getDiffHunkByIndex(index);
       int delLen = (int) hunk.getBaseHunk().getCodeSnippet().stream().filter(str -> !str.isEmpty()).count();
       int addLen = (int) hunk.getCurrentHunk().getCodeSnippet().stream().filter(str -> !str.isEmpty()).count();
-      if (addLen > 10 && (delLen == 0 || addLen / (double) delLen > 3)) {
+//      if (addLen > 5 && (delLen <= 1 || addLen / (double) delLen > 2)) {
+      if (addLen / (double) delLen > 2) {
         return true;
       }
       totalAdd += addLen;
       totalDelete += delLen;
     }
 
-    return totalAdd > 20 && (totalDelete == 0 || totalAdd / (double) totalDelete > 3);
+//    return totalAdd > 10 && (totalDelete <= 2 || totalAdd / (double) totalDelete > 2);
+    return totalAdd / (double) totalDelete > 2;
   }
 
   private boolean isAddFeature(List<String> diffHunkIndices){

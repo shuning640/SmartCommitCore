@@ -45,7 +45,7 @@ public class SmartCommit {
 
   // options and default
   private boolean detectRefactorings = true;
-  private boolean processNonJavaChanges = false;
+  private boolean processNonJavaChanges = true;
   private double weightThreshold = 0.8D;
   private double minSimilarity = 0.8D;
   private int maxDistance = 1;
@@ -607,9 +607,19 @@ public class SmartCommit {
       minValue = Collections.min(passGroups.values());
     }
     System.out.println(regressionId +  ": GroupSize" + groups.size() + " HunkSum" + hunkSum + " PassGroupNum" + passGroups.size() + " MinHunkNum" + minValue);
-    MysqlManager.insertGroupRevertResult("group_revert_result", regressionId, groups.size(), hunkSum, passGroups.size(), minValue, ceGroups.size(), groupLabel);
+    MysqlManager.insertGroupRevertResult("group_revert_result", regressionId, groups.size(), hunkSum, passGroups.size(), minValue, ceGroups.size(), groupLabel, getGroupLabelNum(groups));
+  }
 
-
+  private static String getGroupLabelNum(Map<String, Group>  groups){
+    StringBuilder groupLabelNum = new StringBuilder();
+    Map<GroupLabel, Integer> groupLabelMap = new HashMap<>();
+    for(Map.Entry<String, Group> entry: groups.entrySet()){
+      groupLabelMap.put(entry.getValue().getIntentLabel(), groupLabelMap.getOrDefault(entry.getValue().getIntentLabel(),0)+1);
+    }
+    for(Map.Entry<GroupLabel, Integer> entry: groupLabelMap.entrySet()){
+      groupLabelNum.append(entry.getKey() + ":" + entry.getValue() + " ");
+    }
+    return groupLabelNum.toString();
   }
 
   public static String revertGroups(Set<HunkEntity> allHunks, Map<String, Group> groups, SmartCommit smartCommit, Revision ric,
@@ -676,23 +686,35 @@ public class SmartCommit {
   }
 
   public static void main(String [] args) throws Exception {
+    Map<GroupLabel, Integer> groupLabelMap = new HashMap<>();
 //    String sql = "select * from regressions_all where is_clean=1 and is_dirty=0 and id not in (select regression_id from group_revert_result);\n";
-    String sql = "select * from regressions_all where id > 60 and id < 150";
+    String sql = "select * from regressions_all where is_clean=1 and is_dirty=0";
     List<Regression> regressionList = MysqlManager.selectCleanRegressions(sql);
     for (int i = 0; i < regressionList.size(); i++) {
       try{
         Regression regression = regressionList.get(i);
         String projectName = regression.getProjectFullName();
+        if(!projectName.contains("verdict-project_verdict") && !projectName.contains("uklimaschewski_EvalEx")){
+          continue;
+        }
         Revision ric = regression.getRic();
         Revision work = regression.getWork();
         SmartCommit smartCommit = new SmartCommit(String.valueOf(projectName.hashCode()),
                 projectName, Config.REPO_PATH + File.separator + projectName, Config.TEMP_DIR + projectName);
         Map<String, Group> groups = smartCommit.analyzeCommit(work.getCommitID(), ric.getCommitID());
+        for(Map.Entry<String, Group> entry: groups.entrySet()){
+          groupLabelMap.put(entry.getValue().getIntentLabel(), groupLabelMap.getOrDefault(entry.getValue().getIntentLabel(),0)+1);
+          System.out.println(entry.getKey() + ": " + entry.getValue().getDiffHunkIDs().size() +  " " + entry.getValue().getIntentLabel());
+        }
         System.out.println("regression: " + regression.getId() + " group size: " + groups.size());
       }
       catch (Exception e){
         e.printStackTrace();
       }
+    }
+
+    for(Map.Entry<GroupLabel, Integer> entry: groupLabelMap.entrySet()){
+      System.out.println(entry.getKey() + ": " + entry.getValue());
     }
   }
 
