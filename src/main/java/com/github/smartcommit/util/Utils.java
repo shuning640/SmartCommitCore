@@ -905,5 +905,36 @@ public class Utils {
             contentType.equals(ContentType.EMPTY);
   }
 
+  public static String runPython(String pythonScriptPath, String... arg) {
+    // 构建 Python 命令
+//    Executor executor = new Executor();
+//    executor.setDirectory(new File("/Users/lsn/Desktop/regminer/recommend_tool/SmartCommitCore/"));
+//    String execStatement =
+//            "python3 " + pythonScriptPath + " " + String.join(" ", arg);
+//    String result = executor.exec(execStatement).trim();
 
+    ProcessBuilder pb = new ProcessBuilder("/usr/bin/python3", pythonScriptPath);
+    pb.command().addAll(Arrays.asList(arg)); // 添加额外的参数
+    pb.redirectErrorStream(true);
+    StringBuilder outputBuilder = new StringBuilder();
+    try {
+      // 启动 Python 进程
+      Process process = pb.start();
+      // 读取 Python 进程的输出
+      BufferedReader in = new BufferedReader(new InputStreamReader(process.getInputStream()));
+      String line;
+      while ((line = in.readLine()) != null) {
+        System.out.println(line);
+        outputBuilder.append(line).append("\n");
+//        if(line.contains("Final Score")){
+//          outputBuilder.append(line.split(":")[1].trim());
+//        }
+//        System.out.println(line);
+      }
+      process.waitFor();
+    }catch (IOException | InterruptedException e) {
+      e.printStackTrace();
+    }
+    return new String(outputBuilder);
+  }
 }

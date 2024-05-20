@@ -20,13 +20,16 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.stream.JsonReader;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.log4j.Logger;
+import org.eclipse.jdt.core.dom.*;
 import org.jgrapht.Graph;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
+import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 
@@ -276,6 +279,25 @@ public class SmartCommit {
 
     return results;
   }
+
+//  public List<DiffHunk> group2Hunks(Group group){
+//    List<DiffHunk> hunks = new ArrayList<>();
+//    for (String diffHunkID : group.getDiffHunkIDs()) {
+//      DiffHunk diffHunk = id2DiffHunkMap.get(diffHunkID.split(":")[1]);
+//      if (diffHunk != null) {
+//        HunkEntity hunkEntity = new HunkEntity();
+//        hunkEntity.setType(diffHunk.getChangeType());
+//        hunkEntity.setOldPath(Objects.equals(diffHunk.getBaseHunk().getRelativeFilePath(), "") ? "/dev/null" : diffHunk.getBaseHunk().getRelativeFilePath());
+//        hunkEntity.setNewPath(Objects.equals(diffHunk.getCurrentHunk().getRelativeFilePath(), "") ? "/dev/null" : diffHunk.getCurrentHunk().getRelativeFilePath());
+//        hunkEntity.setBeginA(diffHunk.getBaseStartLine());
+//        hunkEntity.setBeginB(diffHunk.getCurrentStartLine());
+//        hunkEntity.setEndA(diffHunk.getBaseEndLine());
+//        hunkEntity.setEndB(diffHunk.getCurrentEndLine());
+//        hunks.add(hunkEntity);
+//      }
+//    }
+//    return hunks;
+//  }
 
   public List<HunkEntity> group2Hunks(Group group){
     List<HunkEntity> hunks = new ArrayList<>();
@@ -716,6 +738,124 @@ public class SmartCommit {
     for(Map.Entry<GroupLabel, Integer> entry: groupLabelMap.entrySet()){
       System.out.println(entry.getKey() + ": " + entry.getValue());
     }
+  }
+
+  public Map<String, Double> getRank( Map<String, Group> groups, String testCase, String path){
+    Map<String, Double> groupRank = new HashMap<>();
+    String testCode = getTestCode(path, testCase);
+    if(testCode == null || testCode.length() == 0){
+      return groupRank;
+    }
+    try {
+      StringBuilder args = new StringBuilder("testCode.txt");
+      for (Map.Entry<String, Group> entry : groups.entrySet()) {
+        String fileName = entry.getKey() + ".txt";  // 文件名
+        // 创建文件对象
+        File file = new File(fileName);
+        FileWriter fileWriter = new FileWriter(file);
+        BufferedWriter bufferedWriter = new BufferedWriter(fileWriter);
+        for (String diffHunkID : entry.getValue().getDiffHunkIDs()) {
+          DiffHunk diffHunk = id2DiffHunkMap.get(diffHunkID.split(":")[1]);
+          List<String> delLen = diffHunk.getBaseHunk().getCodeSnippet();
+          List<String> addLen = diffHunk.getCurrentHunk().getCodeSnippet();
+          // 逐行写入内容
+          for (String line : delLen) {
+            bufferedWriter.write("- " + line);
+            bufferedWriter.newLine(); // 写入换行符
+          }
+          for (String line : addLen) {
+            bufferedWriter.write("+ " + line);
+            bufferedWriter.newLine(); // 写入换行符
+          }
+          bufferedWriter.newLine(); // 写入换行符
+        }
+        bufferedWriter.close();
+        args.append(" ").append(fileName);
+      }
+      String[] inputArray = new String(args).split("\\s+");
+
+      String str = Utils.runPython("calScore.py", inputArray);
+      Pattern pattern = Pattern.compile("(group\\d+)\\.txt\\s+Final score\\s*:\\s*(\\d+\\.\\d+)");
+      Matcher matcher = pattern.matcher(str);
+
+      while (matcher.find()) {
+        String hunkCode = matcher.group(1);
+        double finalScore = Double.parseDouble(matcher.group(2));
+        groupRank.put(hunkCode, finalScore);
+      }
+    } catch (IOException e) {
+      System.out.println("写入文件时出错：" + e.getMessage());
+    }finally {
+
+    }
+    return groupRank;
+  }
+
+
+  private static double calScore(String args){
+    try {
+      String str = Utils.runPython("calScore.py", "testCode.txt", "hunkCode.txt");
+      return Double.parseDouble(str);
+    } catch (NumberFormatException e) {
+      // 处理转换错误
+      System.err.println("转换分数时出现数字格式错误：" + e.getMessage());
+      return 0; // 或者返回一个默认值
+    } catch (Exception e) {
+      // 处理其他异常
+      System.err.println("运行Python脚本时出现错误：" + e.getMessage());
+      return -1; // 或者返回一个默认值
+    }
+  }
+
+  //testPath： com.alibaba.json.bvt.parser.deser.list.ListFieldTest#test_for_list
+  private String getTestCode(String basePath, String testPath) {
+    final String[] testCode = {""};
+    basePath += File.separator + "src" + File.separator + "test" + File.separator + "java" +  File.separator ;
+    String[] parts = testPath.split("#");
+    if (parts.length != 2) {
+      System.out.println("Invalid test path format.");
+      return null;
+    }
+    String className = parts[0];
+    String methodName = parts[1];
+    String filePath = basePath + className.replace(".", File.separator) + ".java";
+    String source = "";
+    try{
+      source = new String(Files.readAllBytes(Paths.get(filePath)));
+    } catch (IOException e) {
+      System.out.println("Test file not found: " + filePath);
+      return null;
+    }
+    ASTParser parser = ASTParser.newParser(AST.JLS8);
+    parser.setSource(source.toCharArray());
+    parser.setKind(ASTParser.K_COMPILATION_UNIT);
+
+    final CompilationUnit cu = (CompilationUnit) parser.createAST(null);
+
+    cu.accept(new ASTVisitor() {
+      public boolean visit(MethodDeclaration node) {
+        if (node.getName().getFullyQualifiedName().equals(methodName)) {
+          testCode[0] = node.toString();
+        }
+        return true;
+      }
+    });
+
+    String fileName = "testCode.txt"; // 文件名
+    File file = new File(fileName);
+
+    try {
+      // 创建文件写入器
+      FileWriter fileWriter = new FileWriter(file);
+      // 将字符串写入文件
+      fileWriter.write(testCode[0]);
+      // 关闭写入器
+      fileWriter.close();
+      System.out.println("test文件写入成功！");
+    } catch (IOException e) {
+      System.out.println("写入文件时出错：" + e.getMessage());
+    }
+    return testCode[0];
   }
 
 }

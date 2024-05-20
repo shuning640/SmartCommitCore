@@ -1,6 +1,8 @@
 package com.github.smartcommit.core.dd;
 
+import com.github.smartcommit.client.Config;
 import com.github.smartcommit.client.SmartCommit;
+import com.github.smartcommit.model.Group;
 import com.github.smartcommit.model.HunkEntity;
 import com.github.smartcommit.model.Regression;
 import com.github.smartcommit.model.Revision;
@@ -25,7 +27,7 @@ public class Revert {
     public static void main(String [] args) throws Exception {
         String tableName = "group_revert_result";
 //        String sql = "select * from regressions_all where is_clean=1 and is_dirty=0 and id not in (select regression_id from " + tableName + ");\n";
-        String sql = "select * from regressions_all where is_clean=1 and is_dirty=0;\n";
+        String sql = "select * from regressions_all where is_clean=1 and is_dirty=0 and id > 199;\n";
         List<Regression> regressionList = MysqlManager.selectCleanRegressions(sql);
         PrintStream o = new PrintStream(new File("log_" + tableName +".txt"));
         System.setOut(o);
@@ -93,8 +95,30 @@ public class Revert {
             System.out.println("regression: " + regression.getId() + " work version test failed");
             return;
         }
+//        SmartCommit.testGroups(regression);
 
-        SmartCommit.testGroups(regression);
+        SmartCommit smartCommit = new SmartCommit(String.valueOf(projectName.hashCode()),
+                projectName, Config.REPO_PATH + File.separator + projectName, Config.TEMP_DIR + projectName);
+        Map<String, Group> groups = smartCommit.analyzeCommit(work.getCommitID(), ric.getCommitID());
+        Map<String, Double> groupRank = smartCommit.getRank(groups, regression.getTestCase(), path);
+        for(Map.Entry<String, Group> entry: groups.entrySet()){
+            List<HunkEntity> hunks = smartCommit.group2Hunks(entry.getValue());
+            int hunksSize = hunks.size();
+            hunks.removeIf(hunkEntity -> hunkEntity.getNewPath().contains("test") || hunkEntity.getOldPath().contains("test"));
+            if(hunks.size() == 0){
+                continue;
+            }
+            Utils.copyDirToTarget(ric.getLocalCodeDir().toString(),path);
+            Revert.revert(path,hunks);
+            execStatement = System.getProperty("user.home").contains("lsn") ?
+                    "chmod u+x build.sh; chmod u+x test.sh; ./build.sh; ./test.sh;" :
+                    "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64; chmod u+x build.sh; chmod u+x test.sh; ./build.sh; ./test.sh; ";
+            result = executor.exec(execStatement).trim();
+            System.out.println("regression" + regressionId +" " + entry.getKey() + " " + entry.getValue().getIntentLabel() +
+                    " " +  hunksSize + " " + result + " " + groupRank.get(entry.getKey()));
+            MysqlManager.insertRankGroupRevertResult("rank_group_revert_result", regressionId, entry.getKey(), hunksSize,result,
+                    entry.getValue().getIntentLabel().getLabel(), groupRank.get(entry.getKey()));
+        }
 
         FileUtils.deleteDirectory(rfcDir);
         FileUtils.deleteDirectory(ricDir);

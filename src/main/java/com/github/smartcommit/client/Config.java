@@ -8,7 +8,7 @@ public final class Config {
   public static final String REPO_NAME = "cflint_CFLint";
 //  public static final String REPO_PATH = System.getProperty("user.home") + File.separator + "meta_projects" + File.separator;//99服务器
 //  public static final String REPO_PATH = System.getProperty("user.home") + File.separator + "dd" + File.separator + "ddj_space" + File.separator + "meta_projects" + File.separator;//95服务器
-  public static final String REPO_PATH = System.getProperty("user.home").contains("lsn") ?
+  public static final String REPO_PATH = (System.getProperty("user.home").contains("lsn") || System.getProperty("user.home").contains("sxz")) ?
         (System.getProperty("user.home") + File.separator + "ddj_space" + File.separator + "meta_projects" + File.separator) :
         ( System.getProperty("user.home") + File.separator + "meta_projects" + File.separator);
   public static final String TEMP_DIR =  System.getProperty("user.home").contains("lsn") ?

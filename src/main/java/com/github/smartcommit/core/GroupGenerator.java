@@ -146,15 +146,19 @@ public class GroupGenerator {
             .collect(Collectors.toList());
     Set<DiffHunk> others = new TreeSet<>(diffHunkComparator());
     for (DiffFile diffFile : nonJavaDiffFiles) {
+      String filePath = diffFile.getBaseRelativePath().isEmpty() ? diffFile.getCurrentRelativePath() : diffFile.getBaseRelativePath();
       for (DiffHunk diffHunk : diffFile.getDiffHunks()) {
-        diffHunk.setDiffHunkLabel(DiffHunkLabel.NONJAVA);
+        if (Utils.isDocFile(filePath)) {
+          diffHunk.setDiffHunkLabel(DiffHunkLabel.DOCS);
+        } else{
+          diffHunk.setDiffHunkLabel(DiffHunkLabel.NONJAVA);
+        }
       }
     }
     if (processNonJava) {
       for (DiffFile diffFile : nonJavaDiffFiles) {
         others.addAll(diffFile.getDiffHunks());
       }
-      createEdges(others, DiffEdgeType.NONJAVA, 1.0);
     } else {
       Map<String, Set<DiffHunk>> diffHunksByFileType = new HashMap<>();
       for (DiffFile diffFile : nonJavaDiffFiles) {
@@ -918,7 +922,7 @@ public class GroupGenerator {
       int delLen = (int) hunk.getBaseHunk().getCodeSnippet().stream().filter(str -> !str.isEmpty()).count();
       int addLen = (int) hunk.getCurrentHunk().getCodeSnippet().stream().filter(str -> !str.isEmpty()).count();
 //      if (addLen > 5 && (delLen <= 1 || addLen / (double) delLen > 2)) {
-      if (addLen / (double) delLen > 2) {
+      if (addLen / (double) delLen > 1.5) {
         return true;
       }
       totalAdd += addLen;
@@ -926,7 +930,7 @@ public class GroupGenerator {
     }
 
 //    return totalAdd > 10 && (totalDelete <= 2 || totalAdd / (double) totalDelete > 2);
-    return totalAdd / (double) totalDelete > 2;
+    return totalAdd / (double) totalDelete > 1.5;
   }
 
   private boolean isAddFeature(List<String> diffHunkIndices){

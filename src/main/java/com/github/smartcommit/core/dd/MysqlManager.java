@@ -183,6 +183,32 @@ public class MysqlManager {
         }
     }
 
+
+    public static void insertRankGroupRevertResult(String tableName, String regressionId, String groupId,int hunkNum, String result, String groupLabel, Double rank) throws Exception {
+        if (conn == null) {
+            getConn("95");
+        }
+        PreparedStatement pstmt = null;
+        try {
+            pstmt =conn.prepareStatement("insert into " + tableName + " (regression_id, group_id, hunk_num, result, group_label, rank) " +
+                    "values(?,?,?,?,?,?)");
+            pstmt.setInt(1, Integer.parseInt(regressionId));
+            pstmt.setString(2,groupId);
+            pstmt.setInt(3,hunkNum);
+            pstmt.setString(4,result);
+            pstmt.setString(5,groupLabel);
+            pstmt.setString(6,rank.toString());
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }finally {
+            if (pstmt!=null){
+                pstmt.close();
+            }
+        }
+    }
+
+
     public static void  insertDD(String uuid,String revision,String cc_ddmin,String cc_ddj) throws Exception {
         if (conn == null) {
             getConn();

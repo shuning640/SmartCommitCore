@@ -10,7 +10,8 @@ public enum DiffHunkLabel {
     FEATURE("Add feature"), // new feature
     REFACTOR("Refactor code structure"), // refactoring
     REFORMAT("Reformat code"), // blank/special character changes
-    OTHER("Other changes"); // trivial changes
+    OTHER("Other changes"), // trivial changes
+    DOCS("Modifydocs file");
 
     public String label;
 
